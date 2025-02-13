@@ -1,0 +1,69 @@
+#all non absolute paths are added up with the directory of the config file
+# suppose path: ./my/relative/path -> /path/to/configfile/my/relative/path
+node_server:
+  address: ":8080"
+  log:
+    log_level: debug
+    mode: debug # release debug test
+  endpoint_config:
+    private_key:
+      path_1: "./certs/privateKey.pem"
+      path_2: ~
+    server_cert_path: "./certs/chain.pem" #device certificate chain
+    root_certificate: "./certs/root.pem"
+    mutual_authentication: false
+    no_encryption: false
+    secure_element_middleware_path: ~
+    pin: ~
+    key_exchange_method: "KEX_DEFAULT"
+    key_log_file: "./tmp/keylog.txt"
+# @brief "key exchange methods:"
+#"KEX_DEFAULT"
+#"KEX_CLASSIC_ECDHE_256"
+#"KEX_CLASSIC_ECDHE_384"
+#"KEX_CLASSIC_ECDHE_521"
+#"KEX_CLASSIC_X25519"
+#"KEX_CLASSIC_X448"
+#"KEX_PQC_MLKEM_512"
+#"KEX_PQC_MLKEM_768"
+#"KEX_PQC_MLKEM_1024"
+#"KEX_HYBRID_ECDHE_256_MLKEM_512"
+#"KEX_HYBRID_ECDHE_384_MLKEM_768"
+#"KEX_HYBRID_ECDHE_521_MLKEM_1024"
+#"KEX_HYBRID_X25519_MLKEM_512"
+#"KEX_HYBRID_X25519_MLKEM_768"
+#"KEX_HYBRID_X448_MLKEM_768"
+    hybrid_signature_mode: "HYBRID_SIGNATURE_MODE_DEFAULT"
+# @brief "hybrid_signature_mode:"
+#"HYBRID_SIGNATURE_MODE_DEFAULT"
+#"HYBRID_SIGNATURE_MODE_NATIVE"
+#"HYBRID_SIGNATURE_MODE_ALTERNATIVE"
+#"HYBRID_SIGNATURE_MODE_BOTH"
+
+asl_config:
+  logging_enabled: true
+  log_level: 4
+
+database:
+  type: sqlite
+  debug: true
+  log_level: warn
+
+  # SQLite config
+  sqlite:
+    path: db.sqlite
+
+log_database:
+  type: sqlite
+  debug: false
+  # SQLite config
+  sqlite:
+    path: /home/philipp/kritis/kritis3m_scale/log.sqlite
+#global log module
+log:
+  # Output formatting for logs: text or json
+  format: text
+  level: debug
+
+acl_policy_path: ./startup.json
+
