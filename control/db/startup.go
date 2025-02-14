@@ -49,7 +49,6 @@ func (c Config) BuildConnectionString() string {
 	)
 }
 
-
 func NewStateManager() (*StateManager, error) {
 	ctx := context.Background()
 
@@ -148,7 +147,7 @@ func initializeSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	// Create schema tables
-	// _, err = pool.Exec(ctx, createTablesSQL)
+	_, err = pool.Exec(ctx, createTablesSQL)
 
 	if err != nil {
 		return fmt.Errorf("failed to create schema: %w", err)

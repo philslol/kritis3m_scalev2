@@ -2,16 +2,39 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 
 	"github.com/gofrs/uuid/v5"
 	// uuidpq "github.com/jackc/pgx-gofrs-uuid"
 	"golang.org/x/exp/rand"
 )
+
+// completeTransaction completes the current pending transaction.
+func (sm *StateManager) CompleteTransaction(ctx context.Context) error {
+	tx, err := sm.pool.Begin(ctx)
+	_, err = tx.Exec(ctx, `SELECT complete_transaction()`)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// rollbackTransaction rolls back the current pending transaction.
+func (sm *StateManager) rollbackTransaction(ctx context.Context) error {
+	tx, err := sm.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `SELECT rollback_transaction()`)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
 // StartTransaction initializes a new transaction and returns the transaction ID.
 func (s *StateManager) StartTransaction(ctx context.Context, createdBy, description string) (uuid.UUID, error) {
@@ -42,48 +65,7 @@ func (s *StateManager) StartTransaction(ctx context.Context, createdBy, descript
 	return transactionID, nil
 }
 
-
-// LogChange records a change in the database within an active transaction.
-func (s *StateManager) LogChange(ctx context.Context, tx pgx.Tx, transactionID uuid.UUID, tableName, recordID, operation string, oldData, newData interface{}, createdBy string) error {
-	var oldDataJSON, newDataJSON []byte
-	var err error
-
-	// Convert oldData to JSON if not nil
-	if oldData != nil {
-		oldDataJSON, err = json.Marshal(oldData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal old data: %w", err)
-		}
-	}
-
-	// Convert newData to JSON if not nil
-	if newData != nil {
-		newDataJSON, err = json.Marshal(newData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal new data: %w", err)
-		}
-	}
-
-	query := `INSERT INTO change_log (id, transaction_id, table_name, record_id, operation, old_data, new_data, created_at, created_by) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`
-
-	_, err = tx.Exec(ctx, query,
-		uuid.Must(uuid.NewV4()),
-		transactionID,
-		tableName,
-		recordID,
-		operation,
-		oldDataJSON,
-		newDataJSON,
-		createdBy,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to log change: %w", err)
-	}
-	return nil
-}
-
-func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID, createdBy string) error {
+func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID, createdBy string, apply_state bool) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %v", err)
@@ -91,9 +73,9 @@ func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID
 	defer tx.Rollback(ctx) // Ensure rollback if failure occurs
 
 	// Simulated logic: attempt network updates
-	if !ApplyNetworkChanges(transactionID) {
+	if !apply_state {
 		log.Debug().Msg("Network update failed, rolling back")
-		rollbackTransaction(ctx, tx, transactionID)
+		s.RollbackTransaction(ctx, transactionID)
 		return fmt.Errorf("network update failed")
 	}
 
@@ -107,6 +89,7 @@ func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID
 }
 
 func ApplyNetworkChanges(transactionID uuid.UUID) bool {
+	return false
 	// Initialize the random number generator
 	rand.Seed(rand.Uint64())
 	// Generate a random number between 0 and 99
@@ -119,9 +102,29 @@ func ApplyNetworkChanges(transactionID uuid.UUID) bool {
 	return true
 }
 
-func rollbackTransaction(ctx context.Context, tx pgx.Tx, transactionID uuid.UUID) {
-	_, err := tx.Exec(ctx, `UPDATE transactions SET status = 'rollback', completed_at = NOW() WHERE id = $1`, transactionID)
+func (s *StateManager) RollbackTransaction(ctx context.Context, transactionID uuid.UUID) error {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		log.Printf("Failed to mark transaction as rollback: %v", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer tx.Rollback(ctx)
+
+	// Check if the transaction is in 'pending' state
+	var status string
+	err = tx.QueryRow(ctx, `SELECT status FROM transactions WHERE id = $1`, transactionID).Scan(&status)
+	if err != nil {
+		return fmt.Errorf("failed to query transaction status: %w", err)
+	}
+
+	if status != "pending" && status != "failed" {
+		log.Warn().Msg("transaction was already accepted before")
+		return fmt.Errorf("rollback is only allowed for transactions in pending state")
+	}
+	// Call the database rollback function
+	query := `SELECT rollback_transaction($1)`
+	if _, err := tx.Exec(ctx, query, transactionID); err != nil {
+		return fmt.Errorf("failed to rollback transaction: %w", err)
+	}
+
+	return tx.Commit(ctx)
 }

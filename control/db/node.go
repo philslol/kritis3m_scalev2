@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -28,7 +27,7 @@ type Node struct {
 
 // CRUD Functions
 
-func (s *StateManager) CreateNode(ctx context.Context, transactionID uuid.UUID, node *Node) error {
+func (s *StateManager) CreateNode(ctx context.Context, node *Node) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -49,13 +48,6 @@ func (s *StateManager) CreateNode(ctx context.Context, transactionID uuid.UUID, 
 	).Scan(&node.ID, &node.CreatedAt, &node.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to insert node: %w", err)
-	}
-
-	// Log the change
-	newData, _ := json.Marshal(node)
-	err = s.LogChange(ctx, tx, transactionID, "nodes", fmt.Sprintf("%d", node.ID), "INSERT", "", string(newData), node.CreatedBy)
-	if err != nil {
-		return err
 	}
 
 	return tx.Commit(ctx)
@@ -84,19 +76,12 @@ func (s *StateManager) GetNode(ctx context.Context, id int) (*Node, error) {
 	return node, nil
 }
 
-func (s *StateManager) UpdateNode(ctx context.Context, transactionID uuid.UUID, node *Node) error {
+func (s *StateManager) UpdateNode(ctx context.Context, node *Node) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
-
-	// Get old data for change log
-	oldNode, err := s.GetNode(ctx, node.ID)
-	if err != nil {
-		return err
-	}
-	oldData, _ := json.Marshal(oldNode)
 
 	query := `
 		UPDATE nodes 
@@ -115,13 +100,6 @@ func (s *StateManager) UpdateNode(ctx context.Context, transactionID uuid.UUID, 
 		return fmt.Errorf("failed to update node: %w", err)
 	}
 
-	// Log the change
-	newData, _ := json.Marshal(node)
-	err = s.LogChange(ctx, tx, transactionID, "nodes", fmt.Sprintf("%d", node.ID), "UPDATE", string(oldData), string(newData), node.CreatedBy)
-	if err != nil {
-		return err
-	}
-
 	return tx.Commit(ctx)
 }
 
@@ -132,23 +110,10 @@ func (s *StateManager) DeleteNode(ctx context.Context, transactionID uuid.UUID, 
 	}
 	defer tx.Rollback(ctx)
 
-	// Get old data for change log
-	oldNode, err := s.GetNode(ctx, id)
-	if err != nil {
-		return err
-	}
-	oldData, _ := json.Marshal(oldNode)
-
 	query := `DELETE FROM nodes WHERE id = $1`
 	_, err = tx.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete node: %w", err)
-	}
-
-	// Log the change
-	err = s.LogChange(ctx, tx, transactionID, "nodes", fmt.Sprintf("%d", id), "DELETE", string(oldData), "", createdBy)
-	if err != nil {
-		return err
 	}
 
 	return tx.Commit(ctx)
