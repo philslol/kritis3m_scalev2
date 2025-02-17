@@ -3,28 +3,17 @@ package db
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/philslol/kritis3m_scalev2/control/types"
 )
 
 // Node represents a node in the system
 
 // Node represents a node in the system
-type Node struct {
-	ID           int                `json:"id"`
-	SerialNumber string             `json:"serial_number"`
-	NetworkIndex int                `json:"network_index"`
-	Locality     string             `json:"locality"`
-	LastSeen     pgtype.Timestamptz `json:"last_seen"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	CreatedBy    string             `json:"created_by"`
-}
 
 // CRUD Functions
 
-func (s *StateManager) CreateNode(ctx context.Context, node *Node) error {
+func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -50,8 +39,8 @@ func (s *StateManager) CreateNode(ctx context.Context, node *Node) error {
 	return tx.Commit(ctx)
 }
 
-func (s *StateManager) GetNode(ctx context.Context, id int) (*Node, error) {
-	node := &Node{}
+func (s *StateManager) GetNode(ctx context.Context, id int) (*types.Node, error) {
+	node := &types.Node{}
 	query := `SELECT id, serial_number, network_index, locality, last_seen, created_at, updated_at, created_by 
               FROM nodes WHERE id = $1`
 
@@ -71,7 +60,7 @@ func (s *StateManager) GetNode(ctx context.Context, id int) (*Node, error) {
 	return node, nil
 }
 
-func (s *StateManager) UpdateNode(ctx context.Context, node *Node) error {
+func (s *StateManager) UpdateNode(ctx context.Context, node *types.Node) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
