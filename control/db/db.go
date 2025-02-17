@@ -175,27 +175,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION ensure_single_pending_transaction()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.status = 'pending' THEN
-        IF EXISTS (
-            SELECT 1 FROM transactions 
-            WHERE status = 'pending' 
-            AND id != NEW.id
-        ) THEN
-            RAISE EXCEPTION 'Only one pending transaction is allowed at a time.';
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER enforce_single_pending_transaction
-    BEFORE INSERT OR UPDATE ON transactions
-    FOR EACH ROW
-    EXECUTE FUNCTION ensure_single_pending_transaction();
-
 CREATE OR REPLACE FUNCTION log_changes()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -207,6 +186,8 @@ BEGIN
     LIMIT 1;
     
     IF current_transaction_id IS NULL THEN
+
+        RAISE NOTICE 'new pending transaction';
         current_transaction_id := create_new_pending_transaction();
     END IF;
 
@@ -284,76 +265,92 @@ BEGIN
     WHERE id = current_transaction_id;
     
     new_transaction_id := create_new_pending_transaction();
-    
     RETURN new_transaction_id;
 END;
 $$ LANGUAGE plpgsql;
 
-create function handle_transaction_rollback() returns trigger
-    language plpgsql
-as
-$$
+CREATE OR REPLACE FUNCTION handle_transaction_rollback() 
+RETURNS TRIGGER AS $$
 DECLARE
     change_record RECORD;
+    column_definitions TEXT;
+    update_statement TEXT;
 BEGIN
-    -- Only proceed if the status is changing to 'rollback'
+    -- Ensure rollback is triggered only when transitioning to 'rollback' status
     IF NEW.status = 'rollback' AND OLD.status != 'rollback' THEN
-        -- Process changes in reverse order
+        
+        -- Process change_log records in reverse order
         FOR change_record IN (
             SELECT * FROM change_log 
             WHERE transaction_id = NEW.id 
             ORDER BY created_at DESC
         ) LOOP
+    -- Disable triggers on the current table
+    EXECUTE format('ALTER TABLE %I DISABLE TRIGGER ALL', change_record.table_name);
+
+            
             CASE change_record.operation
                 WHEN 'INSERT' THEN
                     -- Delete the inserted record
-                    EXECUTE format('DELETE FROM %I WHERE id = $1::' || 
-                        CASE 
-                            WHEN change_record.table_name = 'nodes' THEN 'INTEGER'
-                            ELSE 'TEXT'
-                        END,
+                    EXECUTE format(
+                        'DELETE FROM %I WHERE id = $1', 
                         change_record.table_name
-                    ) USING change_record.record_id;
+                    ) USING change_record.record_id::INTEGER;
                 
                 WHEN 'UPDATE' THEN
-                    -- Restore the old data
-                    EXECUTE format(
-                        'UPDATE %I SET %s WHERE id = $1::' || 
-                        CASE 
-                            WHEN change_record.table_name = 'nodes' THEN 'INTEGER'
-                            ELSE 'TEXT'
-                        END,
-                        change_record.table_name,
-                        (SELECT string_agg(format('%I = ($2->%L)::%s', 
-                            key, 
-                            key,
-                            CASE jsonb_typeof(value)
-                                WHEN 'boolean' THEN 'boolean'
-                                WHEN 'number' THEN 'numeric'
-                                ELSE 'text'
-                            END
-                        ), ', ')
+                    -- Generate column assignments dynamically with explicit type casting
+                    column_definitions := (
+                        SELECT string_agg(
+                            format('%I = ($2->>%L)::%s', 
+                                key, 
+                                key,
+                                CASE 
+                                    WHEN key = 'last_seen' OR key = 'created_at' OR key = 'updated_at' THEN 'timestamptz'
+                                    WHEN key = 'network_index' OR key = 'id' THEN 'integer'
+                                    WHEN jsonb_typeof(value) = 'boolean' THEN 'boolean'
+                                    WHEN jsonb_typeof(value) = 'number' THEN 'numeric'
+                                    ELSE 'text'
+                                END
+                            ), ', '
+                        )
                         FROM jsonb_each(change_record.old_data)
-                        WHERE key != 'id')
-                    ) USING change_record.record_id, change_record.old_data;
+                        WHERE key != 'id' -- Exclude primary key
+                    );
+
+                    -- Construct dynamic UPDATE query
+                    update_statement := format(
+                        'UPDATE %I SET %s WHERE id = $1::INTEGER',
+                        change_record.table_name, 
+                        column_definitions
+                    );
+
+                    -- Debugging: Print query for inspection
+                    RAISE NOTICE 'Executing rollback query: %', update_statement;
+
+                    -- Execute the update
+                    EXECUTE update_statement USING change_record.record_id::INTEGER, change_record.old_data;
                 
                 WHEN 'DELETE' THEN
-                    -- Reinsert the deleted record
+                    -- Reinsert the deleted record with explicit casting
                     EXECUTE format(
                         'INSERT INTO %I (%s) VALUES (%s)',
                         change_record.table_name,
-                        (SELECT string_agg(quote_ident(key), ', ')
-                        FROM jsonb_each(change_record.old_data)),
-                        (SELECT string_agg('($1->' || quote_literal(key) || ')::'
-                            || CASE jsonb_typeof(value)
-                                WHEN 'boolean' THEN 'boolean'
-                                WHEN 'number' THEN 'numeric'
+                        (SELECT string_agg(quote_ident(key), ', ') FROM jsonb_each(change_record.old_data)),
+                        (SELECT string_agg(
+                            '($1->>' || quote_literal(key) || ')::' ||
+                            CASE 
+                                WHEN key = 'last_seen' OR key = 'created_at' OR key = 'updated_at' THEN 'timestamptz'
+                                WHEN key = 'network_index' OR key = 'id' THEN 'integer'
+                                WHEN jsonb_typeof(value) = 'boolean' THEN 'boolean'
+                                WHEN jsonb_typeof(value) = 'number' THEN 'numeric'
                                 ELSE 'text'
-                               END,
-                            ', ')
-                        FROM jsonb_each(change_record.old_data))
+                            END,
+                        ', ') FROM jsonb_each(change_record.old_data))
                     ) USING change_record.old_data;
             END CASE;
+
+    -- Re-enable triggers on the current table after processing
+    EXECUTE format('ALTER TABLE %I ENABLE TRIGGER ALL', change_record.table_name);
         END LOOP;
 
         -- Mark transaction as failed
@@ -365,7 +362,9 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
+
+
 
 CREATE TRIGGER trigger_transaction_rollback
     AFTER UPDATE ON transactions

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofrs/uuid/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -18,8 +17,6 @@ type Node struct {
 	NetworkIndex int                `json:"network_index"`
 	Locality     string             `json:"locality"`
 	LastSeen     pgtype.Timestamptz `json:"last_seen"`
-	ValidFrom    time.Time          `json:"valid_from"`
-	ValidTo      pgtype.Timestamptz `json:"valid_to"`
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
 	CreatedBy    string             `json:"created_by"`
@@ -55,7 +52,7 @@ func (s *StateManager) CreateNode(ctx context.Context, node *Node) error {
 
 func (s *StateManager) GetNode(ctx context.Context, id int) (*Node, error) {
 	node := &Node{}
-	query := `SELECT id, serial_number, network_index, locality, last_seen, valid_from, valid_to, created_at, updated_at, created_by 
+	query := `SELECT id, serial_number, network_index, locality, last_seen, created_at, updated_at, created_by 
               FROM nodes WHERE id = $1`
 
 	err := s.pool.QueryRow(ctx, query, id).Scan(
@@ -64,8 +61,6 @@ func (s *StateManager) GetNode(ctx context.Context, id int) (*Node, error) {
 		&node.NetworkIndex,
 		&node.Locality,
 		&node.LastSeen,
-		&node.ValidFrom,
-		&node.ValidTo,
 		&node.CreatedAt,
 		&node.UpdatedAt,
 		&node.CreatedBy,
@@ -103,7 +98,7 @@ func (s *StateManager) UpdateNode(ctx context.Context, node *Node) error {
 	return tx.Commit(ctx)
 }
 
-func (s *StateManager) DeleteNode(ctx context.Context, transactionID uuid.UUID, id int, createdBy string) error {
+func (s *StateManager) DeleteNode(ctx context.Context, id int) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
