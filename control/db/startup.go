@@ -127,12 +127,6 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	// Initialize schema
-	if err := initializeSchema(ctx, pool); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("failed to initialize schema: %w", err)
-	}
-
 	return pool, nil
 }
 
@@ -147,11 +141,27 @@ func initializeSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	// Create schema tables
-	_, err = pool.Exec(ctx, createTablesSQL)
+	_, err = pool.Exec(ctx, schemaSQL)
+
+	if err != nil {
+		return fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	// Create schema tables
+	_, err = pool.Exec(ctx, functionsSQL)
 
 	if err != nil {
 		return fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	return nil
+}
+
+// loadSQLFile reads and returns the content of a SQL file.
+func loadSQLFile(filename string) (string, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to read SQL file %s: %w", filename, err)
+	}
+	return string(content), nil
 }

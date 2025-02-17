@@ -22,8 +22,22 @@ func TestTransactionMechanism(t *testing.T) {
 
 	// Test case 1: Successful transaction
 	t.Run("Successful Transaction", func(t *testing.T) {
+
 		ctx := context.Background()
 		// Start transaction
+
+		_, err = sm.pool.Exec(ctx, schemaSQL)
+
+		if err != nil {
+			log.Err(err)
+		}
+		// Create schema tables
+
+		_, err = sm.pool.Exec(ctx, functionsSQL)
+
+		if err != nil {
+			log.Err(err)
+		}
 
 		// Create Node instance
 		lastSeen := pgtype.Timestamptz{

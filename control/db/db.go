@@ -1,8 +1,7 @@
 package db
 
-// Schema definitions
-const createTablesSQL = `
--- Create ENUM types for status fields and proxy types
+const schemaSQL = `
+-- Create ENUM types
 CREATE TYPE transaction_status AS ENUM ('pending', 'active', 'failed', 'rollback');
 CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
 CREATE TYPE proxy_type AS ENUM ('FORWARD', 'REVERSE', 'TLSTLS');
@@ -27,11 +26,10 @@ CREATE TYPE asl_key_exchange_method AS ENUM (
     'ASL_KEX_HYBRID_X25519_MLKEM768'
 );
 
-
--- Transactions track all changes
+-- Transactions Table
 CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    status transaction_status NOT NULL DEFAULT 'pending',  -- Use ENUM for status
+    status transaction_status NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ,
     created_by TEXT NOT NULL,
@@ -39,130 +37,124 @@ CREATE TABLE IF NOT EXISTS transactions (
     metadata JSONB
 );
 
--- Change log tracks all modifications
+-- Change Log
 CREATE TABLE IF NOT EXISTS change_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transaction_id UUID REFERENCES transactions(id),
+    transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
     table_name TEXT NOT NULL,
-    record_id TEXT NOT NULL,  -- Changed to TEXT to support UUID and INTEGER
-    operation operation_type NOT NULL,  -- Use ENUM for operation
+    record_id TEXT NOT NULL,
+    operation operation_type NOT NULL,
     old_data JSONB,
     new_data JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL
 );
 
--- Nodes are the base entity
+-- Nodes Table
 CREATE TABLE IF NOT EXISTS nodes (
     id SERIAL PRIMARY KEY,
-    serial_number TEXT UNIQUE NOT NULL,
+    serial_number TEXT UNIQUE NOT NULL CHECK (char_length(serial_number) <= 50),
     network_index INTEGER NOT NULL,
     locality TEXT,
     last_seen TIMESTAMPTZ,
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    valid_to TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT NOT NULL,
-    CONSTRAINT valid_serial CHECK (serial_number ~ '^[A-Za-z0-9-]{1,50}$')  -- Added length constraint
+    created_by TEXT NOT NULL
 );
 
--- EndpointConfigs define connection parameters
+-- Endpoint Configurations
 CREATE TABLE IF NOT EXISTS endpoint_configs (
     id SERIAL PRIMARY KEY,
-    transaction_id UUID REFERENCES transactions(id),
+    transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     mutual_auth BOOLEAN NOT NULL DEFAULT false,
     no_encryption BOOLEAN NOT NULL DEFAULT false,
-	asl_key_exchange_method asl_key_exchange_method NOT NULL DEFAULT 'ASL_KEX_DEFAULT',
+    asl_key_exchange_method asl_key_exchange_method NOT NULL DEFAULT 'ASL_KEX_DEFAULT',
     cipher TEXT,
-    status transaction_status NOT NULL DEFAULT 'pending',  -- Use ENUM for status
+    status transaction_status NOT NULL DEFAULT 'pending',
     version INTEGER NOT NULL DEFAULT 1,
-    previous_version_id INTEGER REFERENCES endpoint_configs(id) NULL,  -- Allow NULL for first version
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    valid_to TIMESTAMPTZ,
+    previous_version_id INTEGER REFERENCES endpoint_configs(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL
 );
 
--- Groups organize configurations
+-- Groups Table
 CREATE TABLE IF NOT EXISTS groups (
     id SERIAL PRIMARY KEY,
-    transaction_id UUID REFERENCES transactions(id),
+    transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     log_level INTEGER NOT NULL DEFAULT 0,
-    endpoint_config_id INTEGER REFERENCES endpoint_configs(id),
-    legacy_config_id INTEGER REFERENCES endpoint_configs(id),
-    status transaction_status NOT NULL DEFAULT 'pending',  -- Use ENUM for status
+    endpoint_config_id INTEGER REFERENCES endpoint_configs(id) ON DELETE SET NULL,
+    legacy_config_id INTEGER REFERENCES endpoint_configs(id) ON DELETE SET NULL,
+    status transaction_status NOT NULL DEFAULT 'pending',
     version INTEGER NOT NULL DEFAULT 1,
-    previous_version_id INTEGER REFERENCES groups(id) NULL,  -- Allow NULL for first version
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    valid_to TIMESTAMPTZ,
+    previous_version_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL
 );
 
--- Hardware configurations for nodes
+-- Hardware Configurations
 CREATE TABLE IF NOT EXISTS hardware_configs (
     id SERIAL PRIMARY KEY,
-    node_id INTEGER REFERENCES nodes(id),
-    transaction_id UUID REFERENCES transactions(id),
+    node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE,
+    transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
     device TEXT NOT NULL,
-    ip_cidr INET NOT NULL,  -- Use INET type for better CIDR handling
-    status transaction_status NOT NULL DEFAULT 'pending',  -- Use ENUM for status
+    ip_cidr INET NOT NULL,
+    status transaction_status NOT NULL DEFAULT 'pending',
     version INTEGER NOT NULL DEFAULT 1,
-    previous_version_id INTEGER REFERENCES hardware_configs(id) NULL,  -- Allow NULL for first version
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    valid_to TIMESTAMPTZ,
+    previous_version_id INTEGER REFERENCES hardware_configs(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL
 );
 
--- Proxies connect nodes to groups
+-- Proxies Table
 CREATE TABLE IF NOT EXISTS proxies (
     id SERIAL PRIMARY KEY,
-    transaction_id UUID REFERENCES transactions(id),
-    node_id INTEGER REFERENCES nodes(id),
-    group_id INTEGER REFERENCES groups(id),
+    transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
+    node_id INTEGER REFERENCES nodes(id) ON DELETE CASCADE,
+    group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
     state BOOLEAN NOT NULL DEFAULT true,
-    proxy_type proxy_type NOT NULL,  -- Use ENUM for proxy type
+    proxy_type proxy_type NOT NULL,
     server_endpoint_addr TEXT NOT NULL,
     client_endpoint_addr TEXT NOT NULL,
-    status transaction_status NOT NULL DEFAULT 'pending',  -- Use ENUM for status
+    status transaction_status NOT NULL DEFAULT 'pending',
     version INTEGER NOT NULL DEFAULT 1,
-    previous_version_id INTEGER REFERENCES proxies(id) NULL,  -- Allow NULL for first version
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    valid_to TIMESTAMPTZ,
+    previous_version_id INTEGER REFERENCES proxies(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL
 );
 
--- Function to ensure only one pending transaction exists
-CREATE OR REPLACE FUNCTION ensure_single_pending_transaction()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.status = 'pending' THEN
-        IF EXISTS (
-            SELECT 1 FROM transactions 
-            WHERE status = 'pending' 
-            AND id != NEW.id
-        ) THEN
-            RAISE EXCEPTION 'Only one pending transaction is allowed at a time';
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Indexes for Performance
+CREATE INDEX IF NOT EXISTS idx_transaction_status ON transactions(status);
+CREATE INDEX IF NOT EXISTS idx_change_log_transaction ON change_log(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_change_log_created_at ON change_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_hwconfig_node ON hardware_configs(node_id);
+CREATE INDEX IF NOT EXISTS idx_hwconfig_transaction ON hardware_configs(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_proxy_node ON proxies(node_id);
+CREATE INDEX IF NOT EXISTS idx_proxy_group ON proxies(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_endpoint ON groups(endpoint_config_id);
 
--- Create trigger to enforce single pending transaction
-CREATE TRIGGER enforce_single_pending_transaction
-    BEFORE INSERT OR UPDATE ON transactions
-    FOR EACH ROW
-    EXECUTE FUNCTION ensure_single_pending_transaction();
+`
+
+const functionsSQL = `
+DROP TRIGGER IF EXISTS enforce_single_pending_transaction ON transactions;
+DROP TRIGGER IF EXISTS log_nodes_changes ON nodes;
+DROP TRIGGER IF EXISTS log_endpoint_configs_changes ON endpoint_configs;
+DROP TRIGGER IF EXISTS log_groups_changes ON groups;
+DROP TRIGGER IF EXISTS log_hardware_configs_changes ON hardware_configs;
+DROP TRIGGER IF EXISTS log_proxies_changes ON proxies;
+DROP TRIGGER IF EXISTS trigger_transaction_rollback ON transactions;
+
+DROP FUNCTION IF EXISTS create_new_pending_transaction();
+DROP FUNCTION IF EXISTS ensure_single_pending_transaction();
+DROP FUNCTION IF EXISTS log_changes();
+DROP FUNCTION IF EXISTS handle_transaction_rollback();
+DROP FUNCTION IF EXISTS rollback_transaction();
+DROP FUNCTION IF EXISTS complete_transaction();
 
 CREATE OR REPLACE FUNCTION create_new_pending_transaction()
 RETURNS UUID AS $$
@@ -183,13 +175,32 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Modified change logging function to always use current pending transaction
+CREATE OR REPLACE FUNCTION ensure_single_pending_transaction()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'pending' THEN
+        IF EXISTS (
+            SELECT 1 FROM transactions 
+            WHERE status = 'pending' 
+            AND id != NEW.id
+        ) THEN
+            RAISE EXCEPTION 'Only one pending transaction is allowed at a time.';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_single_pending_transaction
+    BEFORE INSERT OR UPDATE ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION ensure_single_pending_transaction();
+
 CREATE OR REPLACE FUNCTION log_changes()
 RETURNS TRIGGER AS $$
 DECLARE
     current_transaction_id UUID;
 BEGIN
-    -- Get the current pending transaction, or create a new one if none exists
     SELECT id INTO current_transaction_id
     FROM transactions
     WHERE status = 'pending'
@@ -232,9 +243,56 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Modified rollback function to handle reversing operations
-CREATE OR REPLACE FUNCTION handle_transaction_rollback()
-RETURNS TRIGGER AS $$
+CREATE TRIGGER log_nodes_changes
+    AFTER INSERT OR UPDATE OR DELETE ON nodes
+    FOR EACH ROW EXECUTE FUNCTION log_changes();
+
+CREATE TRIGGER log_endpoint_configs_changes
+    AFTER INSERT OR UPDATE OR DELETE ON endpoint_configs
+    FOR EACH ROW EXECUTE FUNCTION log_changes();
+
+CREATE TRIGGER log_groups_changes
+    AFTER INSERT OR UPDATE OR DELETE ON groups
+    FOR EACH ROW EXECUTE FUNCTION log_changes();
+
+CREATE TRIGGER log_hardware_configs_changes
+    AFTER INSERT OR UPDATE OR DELETE ON hardware_configs
+    FOR EACH ROW EXECUTE FUNCTION log_changes();
+
+CREATE TRIGGER log_proxies_changes
+    AFTER INSERT OR UPDATE OR DELETE ON proxies
+    FOR EACH ROW EXECUTE FUNCTION log_changes();
+
+CREATE OR REPLACE FUNCTION complete_transaction()
+RETURNS UUID AS $$
+DECLARE
+    current_transaction_id UUID;
+    new_transaction_id UUID;
+BEGIN
+    SELECT id INTO current_transaction_id
+    FROM transactions
+    WHERE status = 'pending'
+    LIMIT 1;
+    
+    IF current_transaction_id IS NULL THEN
+        RAISE EXCEPTION 'No pending transaction found';
+    END IF;
+
+    UPDATE transactions 
+    SET status = 'active',
+        completed_at = NOW()
+    WHERE id = current_transaction_id;
+    
+    new_transaction_id := create_new_pending_transaction();
+    
+    RETURN new_transaction_id;
+END;
+$$ LANGUAGE plpgsql;
+
+create function handle_transaction_rollback() returns trigger
+    language plpgsql
+as
+$$
 DECLARE
     change_record RECORD;
 BEGIN
@@ -307,100 +365,33 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
-
--- Function to complete the current pending transaction and create a new one
-CREATE OR REPLACE FUNCTION complete_transaction()
-RETURNS UUID AS $$
-DECLARE
-    current_transaction_id UUID;
-    new_transaction_id UUID;
-BEGIN
-    -- Get the current pending transaction
-    SELECT id INTO current_transaction_id
-    FROM transactions
-    WHERE status = 'pending'
-    LIMIT 1;
-    
-    IF current_transaction_id IS NULL THEN
-        RAISE EXCEPTION 'No pending transaction found';
-    END IF;
-
-    -- Mark the current transaction as active and completed
-    UPDATE transactions 
-    SET status = 'active',
-        completed_at = NOW()
-    WHERE id = current_transaction_id;
-    
-    -- Create a new pending transaction
-    new_transaction_id := create_new_pending_transaction();
-    
-    RETURN new_transaction_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Triggers for change logging
-CREATE TRIGGER log_nodes_changes
-    AFTER INSERT OR UPDATE OR DELETE ON nodes
-    FOR EACH ROW EXECUTE FUNCTION log_changes();
-
-CREATE TRIGGER log_endpoint_configs_changes
-    AFTER INSERT OR UPDATE OR DELETE ON endpoint_configs
-    FOR EACH ROW EXECUTE FUNCTION log_changes();
-
-CREATE TRIGGER log_groups_changes
-    AFTER INSERT OR UPDATE OR DELETE ON groups
-    FOR EACH ROW EXECUTE FUNCTION log_changes();
-
-CREATE TRIGGER log_hardware_configs_changes
-    AFTER INSERT OR UPDATE OR DELETE ON hardware_configs
-    FOR EACH ROW EXECUTE FUNCTION log_changes();
-
-CREATE TRIGGER log_proxies_changes
-    AFTER INSERT OR UPDATE OR DELETE ON proxies
-    FOR EACH ROW EXECUTE FUNCTION log_changes();
-
-
--- Create trigger for transaction rollback
 CREATE TRIGGER trigger_transaction_rollback
     AFTER UPDATE ON transactions
     FOR EACH ROW
     EXECUTE FUNCTION handle_transaction_rollback();
 
-
--- Create a function to rollback a transaction
 CREATE OR REPLACE FUNCTION rollback_transaction()
-RETURNS VOID AS $$
+RETURNS void AS $$
 DECLARE
     current_transaction_id UUID;
 BEGIN
-    -- Get the current pending transaction
-    SELECT id INTO current_transaction_id
-    FROM transactions
-    WHERE status = 'pending'
+    SELECT id INTO current_transaction_id 
+    FROM transactions 
+    WHERE status = 'pending' 
+    ORDER BY created_at DESC 
     LIMIT 1;
-    
-    IF current_transaction_id IS NULL THEN
-        RAISE EXCEPTION 'No pending transaction found';
-    END IF;
 
-    -- Update the transaction status to trigger the rollback
-    UPDATE transactions 
-    SET status = 'rollback',
-        completed_at = NOW()
-    WHERE id = current_transaction_id;
+    IF current_transaction_id IS NOT NULL THEN
+	    EXECUTE format(
+        'UPDATE transactions 
+        SET status = %L, completed_at = NOW()::timestamptz
+        WHERE id = %L',
+        'rollback',
+        current_transaction_id
+    );
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
-
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_transaction_status ON transactions(status);
-CREATE INDEX IF NOT EXISTS idx_change_log_transaction ON change_log(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_change_log_created_at ON change_log(created_at);
-CREATE INDEX IF NOT EXISTS idx_nodes_valid_range ON nodes(valid_from, valid_to);
-CREATE INDEX IF NOT EXISTS idx_hwconfig_node ON hardware_configs(node_id);
-CREATE INDEX IF NOT EXISTS idx_hwconfig_transaction ON hardware_configs(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_proxy_node ON proxies(node_id);
-CREATE INDEX IF NOT EXISTS idx_proxy_group ON proxies(group_id);
-CREATE INDEX IF NOT EXISTS idx_group_endpoint ON groups(endpoint_config_id);
 `
