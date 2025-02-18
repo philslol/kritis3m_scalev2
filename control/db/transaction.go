@@ -75,7 +75,7 @@ func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID
 	// Simulated logic: attempt network updates
 	if !apply_state {
 		log.Debug().Msg("Network update failed, rolling back")
-		s.RollbackTransaction(ctx, transactionID)
+		err = s.rollbackTransaction(ctx)
 		return fmt.Errorf("network update failed")
 	}
 
@@ -100,31 +100,4 @@ func ApplyNetworkChanges(transactionID uuid.UUID) bool {
 	// If the random number is 30 or greater, success
 	fmt.Printf("Network changes for transaction %v applied successfully.\n", transactionID)
 	return true
-}
-
-func (s *StateManager) RollbackTransaction(ctx context.Context, transactionID uuid.UUID) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	// Check if the transaction is in 'pending' state
-	var status string
-	err = tx.QueryRow(ctx, `SELECT status FROM transactions WHERE id = $1`, transactionID).Scan(&status)
-	if err != nil {
-		return fmt.Errorf("failed to query transaction status: %w", err)
-	}
-
-	if status != "pending" && status != "failed" {
-		log.Warn().Msg("transaction was already accepted before")
-		return fmt.Errorf("rollback is only allowed for transactions in pending state")
-	}
-	// Call the database rollback function
-	query := `SELECT rollback_transaction($1)`
-	if _, err := tx.Exec(ctx, query, transactionID); err != nil {
-		return fmt.Errorf("failed to rollback transaction: %w", err)
-	}
-
-	return tx.Commit(ctx)
 }

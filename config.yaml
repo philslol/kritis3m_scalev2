@@ -6,64 +6,56 @@ node_server:
     log_level: debug
     mode: debug # release debug test
   endpoint_config:
-    private_key:
-      path_1: "./certs/privateKey.pem"
-      path_2: ~
-    server_cert_path: "./certs/chain.pem" #device certificate chain
-    root_certificate: "./certs/root.pem"
-    mutual_authentication: false
+    private_key: "./certs/privateKey.pem"
+    device_cert: "./certs/chain.pem" #device certificate chain
+    root_cert: "./certs/root.pem"
+    mutual_authentication: true
     no_encryption: false
-    secure_element_middleware_path: ~
-    pin: ~
     key_exchange_method: "KEX_DEFAULT"
     key_log_file: "./tmp/keylog.txt"
-# @brief "key exchange methods:"
-#"KEX_DEFAULT"
-#"KEX_CLASSIC_ECDHE_256"
-#"KEX_CLASSIC_ECDHE_384"
-#"KEX_CLASSIC_ECDHE_521"
-#"KEX_CLASSIC_X25519"
-#"KEX_CLASSIC_X448"
-#"KEX_PQC_MLKEM_512"
-#"KEX_PQC_MLKEM_768"
-#"KEX_PQC_MLKEM_1024"
-#"KEX_HYBRID_ECDHE_256_MLKEM_512"
-#"KEX_HYBRID_ECDHE_384_MLKEM_768"
-#"KEX_HYBRID_ECDHE_521_MLKEM_1024"
-#"KEX_HYBRID_X25519_MLKEM_512"
-#"KEX_HYBRID_X25519_MLKEM_768"
-#"KEX_HYBRID_X448_MLKEM_768"
-    hybrid_signature_mode: "HYBRID_SIGNATURE_MODE_DEFAULT"
-# @brief "hybrid_signature_mode:"
-#"HYBRID_SIGNATURE_MODE_DEFAULT"
-#"HYBRID_SIGNATURE_MODE_NATIVE"
-#"HYBRID_SIGNATURE_MODE_ALTERNATIVE"
-#"HYBRID_SIGNATURE_MODE_BOTH"
+
+database:
+  postgres:
+    host: "localhost"
+    port: 5432
+    user: "postgres"
+    password: "postgres"
+    dbname: "postgres"
+    sslmode: "disable"
+  log:
+    format: text
+    log_level: 1
 
 asl_config:
   logging_enabled: true
   log_level: 4
 
-database:
-  type: sqlite
-  debug: true
-  log_level: warn
+broker_config:
+  address: ":8883"
+  log:
+    format: text
+    log_level: 1
+  endpoint_config:
+    private_key: "./certs/privateKey.pem"
+    device_cert: "./certs/chain.pem" #device certificate chain
+    root_cert: "./certs/root.pem"
+    mutual_authentication: true
+    no_encryption: false
+    key_exchange_method: "KEX_DEFAULT"
+    key_log_file: "./tmp/keylog.txt"
 
-  # SQLite config
-  sqlite:
-    path: db.sqlite
-
-log_database:
-  type: sqlite
-  debug: false
-  # SQLite config
-  sqlite:
-    path: /home/philipp/kritis/kritis3m_scale/log.sqlite
-#global log module
-log:
-  # Output formatting for logs: text or json
-  format: text
-  level: debug
+control_plane_config:
+  server_address: ":8080"
+  log:
+    format: text
+    log_level: 1
+  endpoint_config:
+    private_key: "./certs/privateKey.pem"
+    device_cert: "./certs/chain.pem" #device certificate chain
+    root_cert: "./certs/root.pem"
+    mutual_authentication: true
+    no_encryption: false
+    key_exchange_method: "KEX_DEFAULT"
+    key_log_file: "./tmp/keylog.txt"
 
 acl_policy_path: ./startup.json
-

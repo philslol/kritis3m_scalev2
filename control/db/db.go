@@ -305,6 +305,13 @@ BEGIN
                                 key, 
                                 key,
                                 CASE 
+                                    WHEN key = 'transaction_id' THEN 'uuid'
+                                    WHEN key LIKE '%_id' THEN 'integer'
+                                    WHEN key = 'proxy_type' THEN 'proxy_type'
+                                    WHEN key = 'ip_cidr' THEN 'inet'
+                                    WHEN key = 'asl_key_exchange_method' THEN 'asl_key_exchange_method'
+                                    WHEN key = 'status' THEN 'transaction_status'
+                                    WHEN key = 'operation' THEN 'operation_type'
                                     WHEN key = 'last_seen' OR key = 'created_at' OR key = 'updated_at' THEN 'timestamptz'
                                     WHEN key = 'network_index' OR key = 'id' THEN 'integer'
                                     WHEN jsonb_typeof(value) = 'boolean' THEN 'boolean'
@@ -339,6 +346,13 @@ BEGIN
                         (SELECT string_agg(
                             '($1->>' || quote_literal(key) || ')::' ||
                             CASE 
+                                WHEN key = 'transaction_id' THEN 'uuid'
+                                WHEN key LIKE '%_id' THEN 'integer'
+                                WHEN key = 'proxy_type' THEN 'proxy_type'
+                                WHEN key = 'ip_cidr' THEN 'inet'
+                                WHEN key = 'asl_key_exchange_method' THEN 'asl_key_exchange_method'
+                                WHEN key = 'status' THEN 'transaction_status'
+                                WHEN key = 'operation' THEN 'operation_type'
                                 WHEN key = 'last_seen' OR key = 'created_at' OR key = 'updated_at' THEN 'timestamptz'
                                 WHEN key = 'network_index' OR key = 'id' THEN 'integer'
                                 WHEN jsonb_typeof(value) = 'boolean' THEN 'boolean'

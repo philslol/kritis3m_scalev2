@@ -132,6 +132,7 @@ func TestNodeCRUD(t *testing.T) {
 
 	sm, err := NewStateManager()
 	ctx := context.Background()
+	sm.CompleteTransaction(ctx)
 	err = sm.rollbackTransaction(ctx)
 	if err != nil {
 		log.Err(err)
@@ -177,7 +178,16 @@ func TestNodeCRUD(t *testing.T) {
 
 func TestEndpointConfigCRUD(t *testing.T) {
 	ctx := context.Background()
+
+	// Setup database schema
 	sm, err := NewStateManager()
+
+	_, err = sm.pool.Exec(ctx, schemaSQL)
+	if err != nil {
+		log.Err(err)
+	}
+
+	_, err = sm.pool.Exec(ctx, functionsSQL)
 
 	config := &types.EndpointConfig{
 		Name:                 "test-config",
@@ -205,6 +215,11 @@ func TestEndpointConfigCRUD(t *testing.T) {
 
 	err = sm.DeleteEndpointConfig(ctx, config.ID)
 	assert.NoError(t, err)
+	err = sm.rollbackTransaction(ctx)
+	if err != nil {
+		log.Err(err)
+	}
+
 }
 
 func TestGroupCRUD(t *testing.T) {
