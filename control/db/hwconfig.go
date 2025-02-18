@@ -2,95 +2,129 @@ package db
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 )
 
-// HardwareConfig CRUD
-func (s *StateManager) CreateHardwareConfig(ctx context.Context, config *types.HardwareConfig) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
+func (s *StateManager) CreateGroup(ctx context.Context, config *types.HardwareConfig) error {
 	query := `
-		INSERT INTO hardware_configs (
-			node_id,  device, ip_cidr, status,
-			version, previous_version_id, created_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, created_at, updated_at`
+        INSERT INTO hardware_configs (
+            node_id, device, ip_cidr, version_set_id, state, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, created_at, updated_at`
 
-	err = tx.QueryRow(ctx, query,
-		config.NodeID, config.Device,
-		config.IPCIDR, config.Status, config.Version,
-		config.PreviousVersionID, config.CreatedBy,
+	return s.pool.QueryRow(ctx, query,
+		config.NodeID, config.Device, config.IPCIDR, config.VersionSetID,
+		config.State, config.CreatedBy,
 	).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("failed to insert hardware config: %w", err)
-	}
-
-	return tx.Commit(ctx)
 }
 
-func (s *StateManager) GetHardwareConfig(ctx context.Context, id int) (*types.HardwareConfig, error) {
+func (s *StateManager) GetGroupPByID(ctx context.Context, id int) (*types.HardwareConfig, error) {
 	config := &types.HardwareConfig{}
 	query := `
-		SELECT id, node_id, device, ip_cidr,
-			   status, version, previous_version_id,
-			   created_at, updated_at, created_by
-		FROM hardware_configs WHERE id = $1`
+        SELECT id, node_id, device, ip_cidr, version_set_id, state,
+               created_at, updated_at, created_by
+        FROM hardware_configs WHERE id = $1`
 
 	err := s.pool.QueryRow(ctx, query, id).Scan(
-		&config.ID, &config.NodeID,
-		&config.Device, &config.IPCIDR, &config.Status,
-		&config.Version, &config.PreviousVersionID,
-		&config.CreatedAt, &config.UpdatedAt, &config.CreatedBy,
+		&config.ID, &config.NodeID, &config.Device, &config.IPCIDR,
+		&config.VersionSetID, &config.State, &config.CreatedAt,
+		&config.UpdatedAt, &config.CreatedBy,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hardware config: %w", err)
+		return nil, err
 	}
 	return config, nil
 }
 
-func (s *StateManager) UpdateHardwareConfig(ctx context.Context, config *types.HardwareConfig) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
+func (s *StateManager) UpdateGroup(ctx context.Context, config *types.HardwareConfig) error {
 	query := `
-		UPDATE hardware_configs
-		SET device = $1, ip_cidr = $2, status = $3,
-			version = $4, previous_version_id = $5, updated_at = NOW()
-		WHERE id = $6
-		RETURNING updated_at`
+        UPDATE hardware_configs SET 
+            node_id = $1, device = $2, ip_cidr = $3, version_set_id = $4,
+            state = $5, updated_at = NOW()
+        WHERE id = $6`
 
-	err = tx.QueryRow(ctx, query,
-		config.Device, config.IPCIDR, config.Status,
-		config.Version, config.PreviousVersionID, config.ID,
-	).Scan(&config.UpdatedAt)
+	result, err := s.pool.Exec(ctx, query,
+		config.NodeID, config.Device, config.IPCIDR, config.VersionSetID,
+		config.State, config.ID,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to update hardware config: %w", err)
+		return err
 	}
 
-	return tx.Commit(ctx)
+	if result.RowsAffected() == 0 {
+		return errors.New("hardware config not found")
+	}
+	return nil
 }
 
-func (s *StateManager) DeleteHardwareConfig(ctx context.Context, id int) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
+func (s *StateManager) DeleteGroup(ctx context.Context, id int) error {
 	query := `DELETE FROM hardware_configs WHERE id = $1`
-	_, err = tx.Exec(ctx, query, id)
+	result, err := s.pool.Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete hardware config: %w", err)
+		return err
 	}
 
-	return tx.Commit(ctx)
+	if result.RowsAffected() == 0 {
+		return errors.New("hardware config not found")
+	}
+	return nil
+}
+
+func (s *StateManager) GetByNodeID(ctx context.Context, nodeID int) ([]*types.HardwareConfig, error) {
+	configs := []*types.HardwareConfig{}
+	query := `
+        SELECT id, node_id, device, ip_cidr, version_set_id, state,
+               created_at, updated_at, created_by
+        FROM hardware_configs WHERE node_id = $1`
+
+	rows, err := s.pool.Query(ctx, query, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		config := &types.HardwareConfig{}
+		err := rows.Scan(
+			&config.ID, &config.NodeID, &config.Device, &config.IPCIDR,
+			&config.VersionSetID, &config.State, &config.CreatedAt,
+			&config.UpdatedAt, &config.CreatedBy,
+		)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+	return configs, nil
+}
+
+func (r *StateManager) GetGroupByVersionSetID(ctx context.Context, versionSetID uuid.UUID) ([]*types.HardwareConfig, error) {
+	configs := []*types.HardwareConfig{}
+	query := `
+        SELECT id, node_id, device, ip_cidr, version_set_id, state,
+               created_at, updated_at, created_by
+        FROM hardware_configs WHERE version_set_id = $1`
+
+	rows, err := r.pool.Query(ctx, query, versionSetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		config := &types.HardwareConfig{}
+		err := rows.Scan(
+			&config.ID, &config.NodeID, &config.Device, &config.IPCIDR,
+			&config.VersionSetID, &config.State, &config.CreatedAt,
+			&config.UpdatedAt, &config.CreatedBy,
+		)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+	return configs, nil
 }

@@ -243,9 +243,6 @@ func GetControlPlaneConfig() (*ControlPlaneConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err != nil {
-		return nil, err
-	}
 
 	control_plane_config.Log = log
 	control_plane_config.EndpointConfig = *ep

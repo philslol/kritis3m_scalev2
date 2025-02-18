@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	// uuidpq "github.com/jackc/pgx-gofrs-uuid"
-	"golang.org/x/exp/rand"
 )
 
 // completeTransaction completes the current pending transaction.
@@ -86,18 +85,4 @@ func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID
 	}
 
 	return tx.Commit(ctx)
-}
-
-func ApplyNetworkChanges(transactionID uuid.UUID) bool {
-	return false
-	// Initialize the random number generator
-	rand.Seed(rand.Uint64())
-	// Generate a random number between 0 and 99
-	if rand.Intn(100) < 30 { // 30% chance to fail
-		fmt.Printf("Network changes for transaction %v failed.\n", transactionID)
-		return false // Simulate failure
-	}
-	// If the random number is 30 or greater, success
-	fmt.Printf("Network changes for transaction %v applied successfully.\n", transactionID)
-	return true
 }
