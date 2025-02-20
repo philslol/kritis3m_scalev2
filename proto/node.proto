@@ -7,7 +7,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 
-service NodeService {
+service Southbound{
   rpc CreateNode(CreateNodeRequest) returns (NodeResponse);
   rpc GetNode(GetNodeRequest) returns (NodeResponse);
   rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
@@ -79,10 +79,9 @@ message Node {
   int32 id = 1;
   string serial_number = 2;
   int32 network_index = 3;
-  optional string locality = 4;
-  optional google.protobuf.Timestamp last_seen = 5;
+  string locality = 4;
+  google.protobuf.Timestamp last_seen = 5;
   string version_set_id = 6;
-  string state = 7;
 }
 
 message NodeResponse{
@@ -119,6 +118,8 @@ message UpdateNodeRequest {
   optional string serial_number = 2;
   optional int32 network_index = 3;
   optional string locality = 4;
+  optional string version_set_id = 5;
+
 }
 
 message DeleteNodeRequest {

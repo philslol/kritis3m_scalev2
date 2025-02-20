@@ -13,10 +13,10 @@ import (
 
 // CRUD Functions
 
-func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) error {
+func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) (*types.Node, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -31,12 +31,23 @@ func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) error {
 		node.Locality,
 		node.LastSeen,
 		node.CreatedBy,
-	).Scan(&node.ID, &node.CreatedAt, &node.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("failed to insert node: %w", err)
-	}
+	).Scan(
+		&node.ID,
+		&node.SerialNumber,
+		&node.NetworkIndex,
+		&node.Locality,
+		&node.LastSeen,
+		&node.CreatedAt,
+		&node.UpdatedAt,
+		&node.CreatedBy,
+	)
 
-	return tx.Commit(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert node: %w", err)
+	}
+	tx.Commit(ctx)
+
+	return node, nil
 }
 
 func (s *StateManager) GetNode(ctx context.Context, id int) (*types.Node, error) {
@@ -60,12 +71,14 @@ func (s *StateManager) GetNode(ctx context.Context, id int) (*types.Node, error)
 	return node, nil
 }
 
-func (s *StateManager) UpdateNode(ctx context.Context, node *types.Node) error {
+func (s *StateManager) UpdateNode(ctx context.Context, node *types.Node) (*types.Node, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	updatedNode := &types.Node{}
 
 	query := `
 		UPDATE nodes 
@@ -79,12 +92,26 @@ func (s *StateManager) UpdateNode(ctx context.Context, node *types.Node) error {
 		node.Locality,
 		node.LastSeen,
 		node.ID,
-	).Scan(&node.UpdatedAt)
+	).Scan(
+		&updatedNode.ID,
+		&updatedNode.SerialNumber,
+		&updatedNode.NetworkIndex,
+		&updatedNode.Locality,
+		&updatedNode.LastSeen,
+		&updatedNode.UpdatedAt,
+	)
+
 	if err != nil {
-		return fmt.Errorf("failed to update node: %w", err)
+		return nil, fmt.Errorf("failed to update node: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return updatedNode, nil
 }
 
 func (s *StateManager) DeleteNode(ctx context.Context, id int) error {

@@ -11,10 +11,33 @@ import (
 type VersionState string
 
 const (
-	VersionStateDraft     VersionState = "draft"
-	VersionStatePublished VersionState = "published"
-	VersionStateArchived  VersionState = "archived"
+	VERSION_STATE_DRAFT              VersionState = "draft"
+	VERSION_STATE_PENDING_DEPLOYMENT VersionState = "pending_deployment"
+	VERSION_STATE_ACTIVE             VersionState = "active"
+	VERSION_STATE_DISABLED           VersionState = "disabled"
 )
+
+// Enum mapping for PostgreSQL (converts lowercase DB values to Go uppercase)
+var VersionStateMap = map[string]int32{
+	"draft":              0,
+	"pending_deployment": 1,
+	"active":             2,
+	"disabled":           3,
+}
+
+type ProxyType string
+
+const (
+	PROXY_TYPE_FORWARD ProxyType = "forward"
+	PROXY_TYPE_REVERSE ProxyType = "reverse"
+	PROXY_TYPE_TLSTLS  ProxyType = "tlstls"
+)
+
+var ProxyTypeMap = map[ProxyType]int32{
+	"forward": 0,
+	"reverse": 1,
+	"tlstls":  2,
+}
 
 type Node struct {
 	ID           int          `json:"id"`
@@ -59,7 +82,7 @@ type Proxy struct {
 	NodeID             *int       `json:"node_id,omitempty"`
 	GroupID            *int       `json:"group_id,omitempty"`
 	State              bool       `json:"state"`
-	ProxyType          string     `json:"proxy_type"`
+	ProxyType          ProxyType  `json:"proxy_type"`
 	ServerEndpointAddr string     `json:"server_endpoint_addr"`
 	ClientEndpointAddr string     `json:"client_endpoint_addr"`
 	VersionSetID       *uuid.UUID `json:"version_set_id,omitempty"`

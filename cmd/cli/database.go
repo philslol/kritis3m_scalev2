@@ -11,7 +11,7 @@ func init() {
 }
 
 var db_test = &cobra.Command{
-	Use:   "db_test",  // <-- Change from "scale" to "db_test"
+	Use:   "db_test", // <-- Change from "scale" to "db_test"
 	Short: "Run database test",
 	Long:  "A CLI command to test database connection",
 	Run: func(cmd *cobra.Command, args []string) {

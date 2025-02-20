@@ -8,7 +8,7 @@ import (
 	"github.com/philslol/kritis3m_scalev2/control/types"
 )
 
-func (s *StateManager) CreateGroup(ctx context.Context, config *types.HardwareConfig) error {
+func (s *StateManager) CreateHwConfig(ctx context.Context, config *types.HardwareConfig) error {
 	query := `
         INSERT INTO hardware_configs (
             node_id, device, ip_cidr, version_set_id, state, created_by
@@ -21,7 +21,7 @@ func (s *StateManager) CreateGroup(ctx context.Context, config *types.HardwareCo
 	).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
 }
 
-func (s *StateManager) GetGroupPByID(ctx context.Context, id int) (*types.HardwareConfig, error) {
+func (s *StateManager) GetHwConfigPByID(ctx context.Context, id int) (*types.HardwareConfig, error) {
 	config := &types.HardwareConfig{}
 	query := `
         SELECT id, node_id, device, ip_cidr, version_set_id, state,
@@ -39,7 +39,7 @@ func (s *StateManager) GetGroupPByID(ctx context.Context, id int) (*types.Hardwa
 	return config, nil
 }
 
-func (s *StateManager) UpdateGroup(ctx context.Context, config *types.HardwareConfig) error {
+func (s *StateManager) UpdateHwConfig(ctx context.Context, config *types.HardwareConfig) error {
 	query := `
         UPDATE hardware_configs SET 
             node_id = $1, device = $2, ip_cidr = $3, version_set_id = $4,
@@ -60,7 +60,7 @@ func (s *StateManager) UpdateGroup(ctx context.Context, config *types.HardwareCo
 	return nil
 }
 
-func (s *StateManager) DeleteGroup(ctx context.Context, id int) error {
+func (s *StateManager) DeleteHwConfig(ctx context.Context, id int) error {
 	query := `DELETE FROM hardware_configs WHERE id = $1`
 	result, err := s.pool.Exec(ctx, query, id)
 	if err != nil {
@@ -73,7 +73,7 @@ func (s *StateManager) DeleteGroup(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *StateManager) GetByNodeID(ctx context.Context, nodeID int) ([]*types.HardwareConfig, error) {
+func (s *StateManager) GetHwConfigbyNodeID(ctx context.Context, nodeID int) ([]*types.HardwareConfig, error) {
 	configs := []*types.HardwareConfig{}
 	query := `
         SELECT id, node_id, device, ip_cidr, version_set_id, state,
@@ -101,7 +101,7 @@ func (s *StateManager) GetByNodeID(ctx context.Context, nodeID int) ([]*types.Ha
 	return configs, nil
 }
 
-func (r *StateManager) GetGroupByVersionSetID(ctx context.Context, versionSetID uuid.UUID) ([]*types.HardwareConfig, error) {
+func (r *StateManager) GetHwConfigByVersionSetID(ctx context.Context, versionSetID uuid.UUID) ([]*types.HardwareConfig, error) {
 	configs := []*types.HardwareConfig{}
 	query := `
         SELECT id, node_id, device, ip_cidr, version_set_id, state,
