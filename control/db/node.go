@@ -3,15 +3,11 @@ package db
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 )
-
-// Node represents a node in the system
-
-// Node represents a node in the system
-
-// CRUD Functions
 
 func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) (*types.Node, error) {
 	tx, err := s.pool.Begin(ctx)
@@ -71,49 +67,6 @@ func (s *StateManager) GetNode(ctx context.Context, id int) (*types.Node, error)
 	return node, nil
 }
 
-func (s *StateManager) UpdateNode(ctx context.Context, node *types.Node) (*types.Node, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	updatedNode := &types.Node{}
-
-	query := `
-		UPDATE nodes 
-		SET serial_number = $1, network_index = $2, locality = $3, last_seen = $4, updated_at = NOW()
-		WHERE id = $5
-		RETURNING updated_at`
-
-	err = tx.QueryRow(ctx, query,
-		node.SerialNumber,
-		node.NetworkIndex,
-		node.Locality,
-		node.LastSeen,
-		node.ID,
-	).Scan(
-		&updatedNode.ID,
-		&updatedNode.SerialNumber,
-		&updatedNode.NetworkIndex,
-		&updatedNode.Locality,
-		&updatedNode.LastSeen,
-		&updatedNode.UpdatedAt,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to update node: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return updatedNode, nil
-}
-
 func (s *StateManager) DeleteNode(ctx context.Context, id int) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -128,4 +81,60 @@ func (s *StateManager) DeleteNode(ctx context.Context, id int) error {
 	}
 
 	return tx.Commit(ctx)
+}
+
+func (s *StateManager) ListNodes(ctx context.Context, version_set_id *uuid.UUID) ([]*types.Node, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	query := `
+		SELECT id, serial_number, network_index, locality, last_seen, created_at, updated_at, created_by, version_set_id, state
+		FROM nodes WHERE version_set_id = $1
+	`
+
+	// Execute the query
+	rows, err := tx.Query(ctx, query, version_set_id.String)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	// Slice to hold the results
+	var nodes []*types.Node
+
+	// Iterate over the rows and populate the nodes slice
+	for rows.Next() {
+		var node types.Node
+
+		err := rows.Scan(
+			&node.ID,
+			&node.SerialNumber,
+			&node.NetworkIndex,
+			&node.Locality,
+			node.LastSeen,
+			&node.CreatedAt,
+			&node.UpdatedAt,
+			&node.CreatedBy,
+			node.VersionSetID,
+			&node.State,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+	}
+
+	// Check for errors after iteration
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nodes, nil
 }

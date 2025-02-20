@@ -6,12 +6,45 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
+
 	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 )
+
+func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesRequest) (*v1.ListNodesResponse, error) {
+
+	var ListNodesResponse v1.ListNodesResponse
+	version_id_conv := uuid.FromStringOrNil(req.GetVersionSetId())
+	nodes, err := sb.db.ListNodes(ctx, &version_id_conv)
+	if err != nil {
+		log.Err(err).Msg("failed to list nodes")
+	}
+
+	grpc_nodes := make([]*v1.NodeResponse, len(nodes))
+
+	for i, node := range nodes {
+		version_id := node.VersionSetID.String()
+		grpc_nodes[i] = &v1.NodeResponse{
+			Node: &v1.Node{
+				Id:           int32(node.ID),
+				SerialNumber: node.SerialNumber,
+				Locality:     node.Locality,
+				NetworkIndex: int32(node.NetworkIndex),
+				VersionSetId: version_id,
+				LastSeen:     timestamppb.New(*node.LastSeen),
+			},
+		}
+	}
+
+	ListNodesResponse.Nodes = grpc_nodes
+
+	return &ListNodesResponse, nil
+
+}
 
 func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeRequest) (*v1.NodeResponse, error) {
 	//create locality out of req in the database
@@ -21,6 +54,11 @@ func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeR
 	node.Locality = req.GetLocality()
 	//convert versionSetid string to uuid
 	uuid_version, err := uuid.FromString(req.GetVersionSetId())
+	if err != nil {
+		log.Err(err).Msg("failed to convert versionSetId to uuid")
+		return nil, err
+	}
+
 	node.VersionSetID = &uuid_version
 	if err != nil {
 		return nil, fmt.Errorf("invalid UUID: %w", err)
@@ -138,11 +176,11 @@ func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeR
 	}, nil
 }
 
-func (sb *SouthboundService) DeleteNode(ctx context.Context, req *v1.DeleteNodeRequest) (empty.Empty, error) {
+func (sb *SouthboundService) DeleteNode(ctx context.Context, req *v1.DeleteNodeRequest) (*empty.Empty, error) {
 	err := sb.db.DeleteNode(ctx, int(req.GetId()))
 	if err != nil {
 		log.Err(err).Msg("failed to delete node")
-		return emptypb.Empty{}, err
+		return &emptypb.Empty{}, err
 	}
-	return empty.Empty{}, nil
+	return &empty.Empty{}, nil
 }

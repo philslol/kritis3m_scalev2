@@ -39,40 +39,6 @@ func (s *StateManager) GetHwConfigPByID(ctx context.Context, id int) (*types.Har
 	return config, nil
 }
 
-func (s *StateManager) UpdateHwConfig(ctx context.Context, config *types.HardwareConfig) error {
-	query := `
-        UPDATE hardware_configs SET 
-            node_id = $1, device = $2, ip_cidr = $3, version_set_id = $4,
-            state = $5, updated_at = NOW()
-        WHERE id = $6`
-
-	result, err := s.pool.Exec(ctx, query,
-		config.NodeID, config.Device, config.IPCIDR, config.VersionSetID,
-		config.State, config.ID,
-	)
-	if err != nil {
-		return err
-	}
-
-	if result.RowsAffected() == 0 {
-		return errors.New("hardware config not found")
-	}
-	return nil
-}
-
-func (s *StateManager) DeleteHwConfig(ctx context.Context, id int) error {
-	query := `DELETE FROM hardware_configs WHERE id = $1`
-	result, err := s.pool.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
-
-	if result.RowsAffected() == 0 {
-		return errors.New("hardware config not found")
-	}
-	return nil
-}
-
 func (s *StateManager) GetHwConfigbyNodeID(ctx context.Context, nodeID int) ([]*types.HardwareConfig, error) {
 	configs := []*types.HardwareConfig{}
 	query := `

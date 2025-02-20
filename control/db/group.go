@@ -67,50 +67,6 @@ func (s *StateManager) GetByID(ctx context.Context, id int) (*types.Group, error
 	return group, nil
 }
 
-func (s *StateManager) Update(ctx context.Context, group *types.Group) error {
-	query := `
-        UPDATE groups SET 
-            name = $1,
-            log_level = $2,
-            endpoint_config_id = $3,
-            legacy_config_id = $4,
-            state = $5,
-            version_set_id = $6,
-            updated_at = NOW()
-        WHERE id = $7`
-
-	result, err := s.pool.Exec(ctx, query,
-		group.Name,
-		group.LogLevel,
-		group.EndpointConfigID,
-		group.LegacyConfigID,
-		group.State,
-		group.VersionSetID,
-		group.ID,
-	)
-	if err != nil {
-		return err
-	}
-
-	if result.RowsAffected() == 0 {
-		return errors.New("group not found")
-	}
-	return nil
-}
-
-func (s *StateManager) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM groups WHERE id = $1`
-	result, err := s.pool.Exec(ctx, query, id)
-	if err != nil {
-		return err
-	}
-
-	if result.RowsAffected() == 0 {
-		return errors.New("group not found")
-	}
-	return nil
-}
-
 // Additional useful methods
 
 func (s *StateManager) GetByVersionSetID(ctx context.Context, versionSetID uuid.UUID) ([]*types.Group, error) {

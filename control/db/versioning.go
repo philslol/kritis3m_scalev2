@@ -39,23 +39,6 @@ func (s *StateManager) GetVersionSetByID(ctx context.Context, id uuid.UUID) (*ty
 	return &vs, nil
 }
 
-// UpdateVersionSet updates an existing version set.
-func (s *StateManager) UpdateVersionSet(ctx context.Context, vs types.VersionSet) error {
-	query := `
-		UPDATE version_sets 
-		SET name = $1, description = $2, state = $3, activated_at = $4, disabled_at = $5, metadata = $6
-		WHERE id = $7`
-	_, err := s.pool.Exec(ctx, query, vs.Name, vs.Description, vs.State, vs.ActivatedAt, vs.DisabledAt, vs.Metadata, vs.ID)
-	return err
-}
-
-// DeleteVersionSet removes a version set from the database.
-func (s *StateManager) DeleteVersionSet(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM version_sets WHERE id = $1`
-	_, err := s.pool.Exec(ctx, query, id)
-	return err
-}
-
 // ListVersionSets retrieves all version sets.
 func (s *StateManager) ListVersionSets(ctx context.Context) ([]*types.VersionSet, error) {
 	query := `
@@ -171,40 +154,4 @@ func (s *StateManager) ListVersionTransitions(ctx context.Context) ([]*types.Ver
 	}
 
 	return transitions, nil
-}
-
-func (s *StateManager) DeleteVersionTransition(ctx context.Context, id string) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	query := `DELETE FROM version_transitions WHERE id = $1`
-	_, err = tx.Exec(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete version transition: %w", err)
-	}
-
-	return tx.Commit(ctx)
-}
-
-func (s *StateManager) UpdateVersionTransition(ctx context.Context, transition *types.VersionTransition) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	query := `
-		UPDATE version_transitions 
-		SET status = $1, completed_at = $2, metadata = $3 
-		WHERE id = $4`
-
-	_, err = tx.Exec(ctx, query, transition.Status, transition.CompletedAt, transition.Metadata, transition.ID)
-	if err != nil {
-		return fmt.Errorf("failed to update version transition: %w", err)
-	}
-
-	return tx.Commit(ctx)
 }

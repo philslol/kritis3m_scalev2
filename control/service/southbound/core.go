@@ -15,8 +15,8 @@ import (
 //It doesnt matter if cli or ui uses southbound service
 
 type SouthboundService struct {
-	db                *db.StateManager
-	southboundservice *v1.UnimplementedSouthboundServer
+	db *db.StateManager
+	v1.UnimplementedSouthboundServer
 }
 
 func NewSouthbound(db *db.StateManager) *SouthboundService {
@@ -38,8 +38,8 @@ func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.Li
 func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *v1.UpdateEndpointConfigRequest) (*v1.EndpointConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateEndpointConfig not implemented")
 }
-func (sb *SouthboundService) DeleteEndpointConfig(ctx context.Context, req *v1.DeleteEndpointConfigRequest) (empty.Empty, error) {
-	return empty.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteEndpointConfig not implemented")
+func (sb *SouthboundService) DeleteEndpointConfig(ctx context.Context, req *v1.DeleteEndpointConfigRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteEndpointConfig not implemented")
 }
 func (sb *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*v1.GroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGroup not implemented")
@@ -53,8 +53,8 @@ func (sb *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsR
 func (sb *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*v1.GroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
 }
-func (sb *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroupRequest) (empty.Empty, error) {
-	return empty.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteGroup not implemented")
+func (sb *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroupRequest) (*empty.Empty, error) {
+	return &empty.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteGroup not implemented")
 }
 func (sb *SouthboundService) CreateHardwareConfig(ctx context.Context, req *v1.CreateHardwareConfigRequest) (*v1.HardwareConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateHardwareConfig not implemented")
@@ -68,8 +68,8 @@ func (sb *SouthboundService) ListHardwareConfigs(ctx context.Context, req *v1.Li
 func (sb *SouthboundService) UpdateHardwareConfig(ctx context.Context, req *v1.UpdateHardwareConfigRequest) (*v1.HardwareConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateHardwareConfig not implemented")
 }
-func (sb *SouthboundService) DeleteHardwareConfig(ctx context.Context, req *v1.DeleteHardwareConfigRequest) (empty.Empty, error) {
-	return emptypb.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteHardwareConfig not implemented")
+func (sb *SouthboundService) DeleteHardwareConfig(ctx context.Context, req *v1.DeleteHardwareConfigRequest) (*empty.Empty, error) {
+	return &emptypb.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteHardwareConfig not implemented")
 }
 func (sb *SouthboundService) CreateVersionSet(ctx context.Context, req *v1.CreateVersionSetRequest) (*v1.VersionSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateVersionSet not implemented")
@@ -83,8 +83,8 @@ func (sb *SouthboundService) ListVersionSets(ctx context.Context, req *v1.ListVe
 func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *v1.UpdateVersionSetRequest) (*v1.VersionSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateVersionSet not implemented")
 }
-func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *v1.DeleteVersionSetRequest) (empty.Empty, error) {
-	return emptypb.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteVersionSet not implemented")
+func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *v1.DeleteVersionSetRequest) (*empty.Empty, error) {
+	return &emptypb.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteVersionSet not implemented")
 }
 func (sb *SouthboundService) ActivateVersionSet(ctx context.Context, req *v1.ActivateVersionSetRequest) (*v1.VersionSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ActivateVersionSet not implemented")

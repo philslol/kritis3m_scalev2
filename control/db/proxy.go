@@ -47,36 +47,6 @@ func (s *StateManager) GetProxyByID(ctx context.Context, id int) (*types.Proxy, 
 	return proxy, nil
 }
 
-// UpdateProxy updates an existing proxy record.
-func (s *StateManager) UpdateProxy(ctx context.Context, proxy *types.Proxy) error {
-	query := `
-	UPDATE proxies 
-	SET node_id = $1, group_id = $2, state = $3, proxy_type = $4, server_endpoint_addr = $5, 
-		client_endpoint_addr = $6, version_set_id = $7, state = $8, updated_at = NOW()
-	WHERE id = $9`
-
-	_, err := s.pool.Exec(ctx, query, proxy.NodeID, proxy.GroupID, proxy.State, proxy.ProxyType,
-		proxy.ServerEndpointAddr, proxy.ClientEndpointAddr, proxy.VersionSetID, proxy.VersionState, proxy.ID)
-
-	if err != nil {
-		log.Println("Error updating proxy:", err)
-		return err
-	}
-	return nil
-}
-
-// DeleteProxy removes a proxy by ID.
-func (s *StateManager) DeleteProxy(ctx context.Context, id int) error {
-	query := `DELETE FROM proxies WHERE id = $1`
-
-	_, err := s.pool.Exec(ctx, query, id)
-	if err != nil {
-		log.Println("Error deleting proxy:", err)
-		return err
-	}
-	return nil
-}
-
 // ListProxies retrieves all proxy records.
 func (r *StateManager) ListProxies(ctx context.Context) ([]types.Proxy, error) {
 	query := `SELECT id, node_id, group_id, state, proxy_type, server_endpoint_addr, 
