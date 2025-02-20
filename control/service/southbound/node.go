@@ -146,34 +146,38 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 	return &node_rsp, nil
 }
 
-func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeRequest) (*v1.NodeResponse, error) {
-	//update node in the database
-	var node types.Node = types.Node{
-		ID:           int(req.GetId()),
-		SerialNumber: req.GetSerialNumber(),
-		NetworkIndex: int(req.GetNetworkIndex()),
-		Locality:     req.GetLocality(),
-	}
-	//convert versionSetid string to uuid
-	uuid_version, err := uuid.FromString(req.GetVersionSetId())
-	if err != nil {
-		log.Err(err).Msg("failed to convert versionSetId to uuid")
-		return nil, err
-	}
-	node.VersionSetID = &uuid_version
+func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeRequest) (*empty.Empty, error) {
 
-	new_node, err := sb.db.UpdateNode(ctx, &node)
+	//create map[string]interface{} with req.GetSerialNumber(), req.GetNetworkIndex(), req.GetLocality(), but jsut if available
+	updates := make(map[string]interface{})
+	if req.SerialNumber != nil {
+		updates["serial_number"] = req.GetSerialNumber()
+	}
+	if req.NetworkIndex != nil {
+		updates["network_index"] = int(req.GetNetworkIndex())
+	}
+	if req.Locality != nil {
+		updates["locality"] = req.GetLocality()
+	}
+	if req.VersionSetId != nil {
+
+		uuid_version, err := uuid.FromString(req.GetVersionSetId())
+
+		if err != nil {
+			log.Err(err).Msg("failed to convert versionSetId to uuid")
+			return nil, err
+		}
+		updates["version_set_id"] = uuid_version
+	}
+
+	err := sb.db.Update(ctx, "nodes", updates, "id", int(req.GetId()))
 
 	if err != nil {
 		log.Err(err).Msg("failed to update node")
 		return nil, err
 	}
 
-	return &v1.NodeResponse{
-		Node: &v1.Node{
-			Id: int32(new_node.ID),
-		},
-	}, nil
+	return &empty.Empty{}, nil
 }
 
 func (sb *SouthboundService) DeleteNode(ctx context.Context, req *v1.DeleteNodeRequest) (*empty.Empty, error) {

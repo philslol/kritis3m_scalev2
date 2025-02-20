@@ -35,7 +35,7 @@ func (sb *SouthboundService) GetEndpointConfig(ctx context.Context, req *v1.GetE
 func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.ListEndpointConfigsRequest) (*v1.ListEndpointConfigsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEndpointConfigs not implemented")
 }
-func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *v1.UpdateEndpointConfigRequest) (*v1.EndpointConfig, error) {
+func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *v1.UpdateEndpointConfigRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateEndpointConfig not implemented")
 }
 func (sb *SouthboundService) DeleteEndpointConfig(ctx context.Context, req *v1.DeleteEndpointConfigRequest) (*empty.Empty, error) {
@@ -50,7 +50,7 @@ func (sb *SouthboundService) GetGroup(ctx context.Context, req *v1.GetGroupReque
 func (sb *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRequest) (*v1.ListGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroups not implemented")
 }
-func (sb *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*v1.GroupResponse, error) {
+func (sb *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
 }
 func (sb *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroupRequest) (*empty.Empty, error) {
@@ -65,7 +65,7 @@ func (sb *SouthboundService) GetHardwareConfig(ctx context.Context, req *v1.GetH
 func (sb *SouthboundService) ListHardwareConfigs(ctx context.Context, req *v1.ListHardwareConfigsRequest) (*v1.ListHardwareConfigsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListHardwareConfigs not implemented")
 }
-func (sb *SouthboundService) UpdateHardwareConfig(ctx context.Context, req *v1.UpdateHardwareConfigRequest) (*v1.HardwareConfigResponse, error) {
+func (sb *SouthboundService) UpdateHardwareConfig(ctx context.Context, req *v1.UpdateHardwareConfigRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateHardwareConfig not implemented")
 }
 func (sb *SouthboundService) DeleteHardwareConfig(ctx context.Context, req *v1.DeleteHardwareConfigRequest) (*empty.Empty, error) {
@@ -80,7 +80,7 @@ func (sb *SouthboundService) GetVersionSet(ctx context.Context, req *v1.GetVersi
 func (sb *SouthboundService) ListVersionSets(ctx context.Context, req *v1.ListVersionSetsRequest) (*v1.ListVersionSetsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListVersionSets not implemented")
 }
-func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *v1.UpdateVersionSetRequest) (*v1.VersionSetResponse, error) {
+func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *v1.UpdateVersionSetRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateVersionSet not implemented")
 }
 func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *v1.DeleteVersionSetRequest) (*empty.Empty, error) {
