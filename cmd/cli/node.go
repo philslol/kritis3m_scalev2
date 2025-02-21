@@ -1,6 +1,7 @@
 package cli
 
 import (
+	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -50,15 +51,29 @@ var createNodeCmd = &cobra.Command{
 		serialNumber, _ := cmd.Flags().GetString("serial-number")
 		networkIndex, _ := cmd.Flags().GetInt32("network-index")
 		locality, _ := cmd.Flags().GetString("locality")
-		versionSetID, _ := cmd.Flags().GetString("version-set-id")
+		versionSetID, _ := cmd.Flags().GetString("version_number")
+		ctx, client, conn, cancel, err := getClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to get client")
+		}
 
-		// TODO: Implement node creation logic
-		log.Info().
-			Str("serial-number", serialNumber).
-			Int32("network-index", networkIndex).
-			Str("locality", locality).
-			Str("version-set-id", versionSetID).
-			Msg("Creating new node")
+		defer cancel()
+		defer conn.Close()
+
+		request := &v1.CreateNodeRequest{
+			SerialNumber: serialNumber,
+			NetworkIndex: networkIndex,
+			Locality:     &locality,
+			VersionSetId: versionSetID,
+		}
+
+		rsp, err := client.CreateNode(ctx, request)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create node")
+		}
+
+		//log all fields
+		log.Info().Msgf("Node created: %v", rsp)
 
 		return nil
 	},

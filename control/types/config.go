@@ -19,6 +19,60 @@ const (
 	maxDuration           time.Duration = 1<<63 - 1
 )
 
+// Config contains the initial Headscale configuration.
+type Config struct {
+	Log LogConfig
+
+	Database DatabaseConfig
+
+	Log_Database DatabaseConfig
+	// CLI          CLIConfig
+	ACL       ACLConfig
+	ASLConfig asl.ASLConfig
+
+	Broker       BrokerConfig
+	ControlPlane ControlPlaneConfig
+
+	CliConfig CliConfig
+}
+
+type ACLConfig struct {
+	PolicyPath string
+}
+
+type BrokerConfig struct {
+	Adress         string
+	Log            LogConfig
+	EndpointConfig asl.EndpointConfig
+}
+
+type ControlPlaneConfig struct {
+	Adress         string
+	Log            LogConfig
+	EndpointConfig asl.EndpointConfig
+}
+
+type LogConfig struct {
+	Format string
+	Level  zerolog.Level
+}
+
+// Config holds the database configuration
+type DatabaseConfig struct {
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
+	DatabaseName string `mapstructure:"dbname"`
+	SSLMode      string `mapstructure:"sslmode"`
+	LogConfig    LogConfig
+}
+
+type CliConfig struct {
+	Timeout    time.Duration
+	ServerAddr string
+}
+
 func toASLKeyExchangeMethod(s string) (asl.ASLKeyExchangeMethod, error) {
 
 	var kex asl.ASLKeyExchangeMethod
@@ -105,53 +159,6 @@ func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 	}
 	return &ep_config, nil
 
-}
-
-// Config contains the initial Headscale configuration.
-type Config struct {
-	Log LogConfig
-
-	Database DatabaseConfig
-
-	Log_Database DatabaseConfig
-	// CLI          CLIConfig
-	ACL       ACLConfig
-	ASLConfig asl.ASLConfig
-
-	Broker       BrokerConfig
-	ControlPlane ControlPlaneConfig
-}
-
-type ACLConfig struct {
-	PolicyPath string
-}
-
-type BrokerConfig struct {
-	Adress         string
-	Log            LogConfig
-	EndpointConfig asl.EndpointConfig
-}
-
-type ControlPlaneConfig struct {
-	Adress         string
-	Log            LogConfig
-	EndpointConfig asl.EndpointConfig
-}
-
-type LogConfig struct {
-	Format string
-	Level  zerolog.Level
-}
-
-// Config holds the database configuration
-type DatabaseConfig struct {
-	Host         string `mapstructure:"host"`
-	Port         int    `mapstructure:"port"`
-	User         string `mapstructure:"user"`
-	Password     string `mapstructure:"password"`
-	DatabaseName string `mapstructure:"dbname"`
-	SSLMode      string `mapstructure:"sslmode"`
-	LogConfig    LogConfig
 }
 
 func GetDatabaseConfig() (*DatabaseConfig, error) {
@@ -246,9 +253,9 @@ func GetControlPlaneConfig() (*ControlPlaneConfig, error) {
 
 	control_plane_config.Log = log
 	control_plane_config.EndpointConfig = *ep
-	control_plane_config.Adress = viper.GetString("control_plane_config.address")
+	control_plane_config.Adress = viper.GetString("control_plane_config.server_address")
 	if control_plane_config.Adress == "" {
-		return nil, fmt.Errorf("no address specified for broker adress")
+		return nil, fmt.Errorf("no address specified for control plane address")
 	}
 
 	return &control_plane_config, nil
@@ -274,5 +281,18 @@ func GetKritis3mScaleConfig() (*Config, error) {
 		Broker:       *broker,
 		ControlPlane: *ctrl_plane_cfg,
 		Log:          parse_Log(""),
+		CliConfig:    GetCliConfig(),
 	}, nil
+}
+
+func GetCliConfig() CliConfig {
+	timeout := viper.GetDuration("cli_timeout_s")
+	//convert to seconds
+	timeout = timeout * time.Second
+	serverAddr := viper.GetString("grpc_listen_addr")
+	return CliConfig{
+		Timeout:    timeout,
+		ServerAddr: serverAddr,
+	}
+
 }

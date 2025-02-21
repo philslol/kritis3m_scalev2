@@ -1,11 +1,12 @@
 package control
 
 import (
+	"net"
+
 	"github.com/philslol/kritis3m_scalev2/control/db"
 	"github.com/philslol/kritis3m_scalev2/control/service/southbound"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/philslol/kritis3m_scalev2/gen/go/v1"
-	"net"
+	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
@@ -31,21 +32,26 @@ func (scale *Kritis3m_Scale) Serve() {
 	if err != nil {
 		log.Err(err)
 	}
-
 	sb := southbound.NewSouthbound(database)
 
-	lis, err := net.Listen("tcp", ":50051")
+	//use ServerAddr and create new grpc listening server
+	lis, err := net.Listen("tcp", scale.cfg.CliConfig.ServerAddr)
 	if err != nil {
 		log.Fatal().Err(err)
 	}
+
 	s := grpc.NewServer()
+	if err != nil {
+		log.Fatal().Err(err)
+	}
 
 	v1.RegisterSouthboundServer(s, sb)
+	err = s.Serve(lis)
+	if err != nil {
+		log.Fatal().Err(err)
+	}
 
 	log.Printf("server listening at %v", lis.Addr())
-	if err := s.Serve(lis); err != nil {
-		// log.Fatalf("failed to serve: %v", err)
-	}
 
 	return
 }

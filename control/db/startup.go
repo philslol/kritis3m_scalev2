@@ -62,7 +62,7 @@ func NewStateManager() (*StateManager, error) {
 
 	pool, err := SetupDatabase(ctx, dbConfig)
 	if err != nil {
-		log.Debug().Msgf("Failed to setup database: %v", err)
+		log.Err(err).Msgf("Failed to setup database: %v", err)
 		return nil, err
 	}
 
@@ -78,7 +78,8 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 	)
 	adminPool, err := pgxpool.Connect(ctx, adminConnStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
+		log.Err(err).Msgf("failed to connect to PostgreSQL: %w", err)
+		return nil, err
 	}
 	defer adminPool.Close()
 
@@ -101,7 +102,8 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 	// Connect to the specific database
 	poolConfig, err := pgxpool.ParseConfig(config.BuildConnectionString())
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+		log.Err(err).Msgf("failed to parse connection string: %w", err)
+		return nil, err
 	}
 	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		pgxuuid.Register(conn.TypeMap())
@@ -118,14 +120,17 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 	// Create connection pool
 	pool, err := pgxpool.ConnectConfig(ctx, poolConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+		log.Err(err).Msgf("failed to create connection pool: %w", err)
+		return nil, err
 	}
 
 	// Verify connection
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		log.Err(err).Msgf("failed to ping database: %w", err)
+		return nil, err
 	}
+	initializeSchema(ctx, pool)
 
 	return pool, nil
 }
@@ -133,35 +138,37 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 // initializeSchema sets up the database schema
 func initializeSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	// Create required extensions
-	_, err := pool.Exec(ctx, `
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		log.Err(err).Msgf("failed to begin transaction: %w", err)
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
 		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to create extensions: %w", err)
+		log.Err(err).Msgf("failed to create extensions: %w", err)
+		return err
 	}
 
 	// Create schema tables
-	_, err = pool.Exec(ctx, schemaSQL)
-
+	_, err = tx.Exec(ctx, schemaSQL)
 	if err != nil {
-		return fmt.Errorf("failed to create schema: %w", err)
+		log.Err(err).Msgf("failed to create schema: %w", err)
+		return err
 	}
 
-	// Create schema tables
-	_, err = pool.Exec(ctx, functionsSQL)
-
-	if err != nil {
-		return fmt.Errorf("failed to create schema: %w", err)
-	}
-
-	return nil
+	return tx.Commit(ctx)
 }
 
 // loadSQLFile reads and returns the content of a SQL file.
 func loadSQLFile(filename string) (string, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		return "", fmt.Errorf("failed to read SQL file %s: %w", filename, err)
+		log.Err(err).Msgf("failed to read SQL file %s: %w", filename, err)
+		return "", err
 	}
 	return string(content), nil
 }

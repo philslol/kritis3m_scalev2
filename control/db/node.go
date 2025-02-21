@@ -16,22 +16,26 @@ func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) (*types
 	defer tx.Rollback(ctx)
 
 	query := `
-		INSERT INTO nodes (serial_number, network_index, locality, last_seen, created_by)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at`
+		INSERT INTO nodes (serial_number, network_index, locality, last_seen, created_by, version_set_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, serial_number, network_index, locality, last_seen,  version_set_id, created_at, updated_at, created_by`
 
+
+		
 	err = tx.QueryRow(ctx, query,
 		node.SerialNumber,
 		node.NetworkIndex,
 		node.Locality,
 		node.LastSeen,
 		node.CreatedBy,
+		node.VersionSetID,
 	).Scan(
 		&node.ID,
 		&node.SerialNumber,
 		&node.NetworkIndex,
 		&node.Locality,
 		&node.LastSeen,
+		&node.VersionSetID,
 		&node.CreatedAt,
 		&node.UpdatedAt,
 		&node.CreatedBy,
