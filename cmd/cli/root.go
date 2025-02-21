@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog"
@@ -15,7 +14,7 @@ const (
 	deprecateNamespaceMessage = "use --user"
 )
 
-var cfgFile string = "./config.yaml"
+var cfgFile string = "/home/philipp/development/ctrl_plane_test/kritis3m_scalev2/config.yaml" // Default file path if no argument provided
 
 func init() {
 	if len(os.Args) > 1 &&
@@ -35,12 +34,12 @@ func init() {
 func initConfig() {
 	// If the --config flag is not set, use a default value
 	if cfgFile == "" {
-		cfgFile = "./config.yaml" // Default file path if no argument provided
+		cfgFile = "/home/philipp/development/ctrl_plane_test/kritis3m_scalev2/config.yaml" // Default file path if no argument provided
 	}
 	log.Debug().Msg("in function initconfig root")
 
-	// Convert the path to absolute for clarity
-	cfgFile, _ = filepath.Abs(cfgFile)
+	// // Convert the path to absolute for clarity
+	// cfgFile, _ = filepath.Abs(cfgFile)
 
 	// Attempt to load the configuration
 	err := types.LoadConfig(cfgFile, true)
@@ -82,6 +81,11 @@ func Execute() {
 		os.Exit(1)
 		return
 	}
-
 	log.Debug().Msg("exit")
+}
+
+// GetRootCommand returns the root command for testing purposes
+func GetRootCommand() *cobra.Command {
+	initConfig()
+	return rootCmd
 }
