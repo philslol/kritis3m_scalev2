@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 )
@@ -50,11 +50,17 @@ func (s *StateManager) GetVersionSetByID(ctx context.Context, id uuid.UUID) (*ty
 	var vs types.VersionSet
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT id, name, description, state, created_at, activated_at, disabled_at, created_by, metadata
-			FROM version_sets WHERE id = $1`
-		return tx.QueryRow(ctx, query, id).Scan(
-			&vs.ID, &vs.Name, &vs.Description, &vs.State, &vs.CreatedAt,
+			SELECT id::text, name, description, state, created_at, activated_at, disabled_at, created_by, metadata
+			FROM version_sets WHERE id = $1::uuid`
+		var idStr string
+		err := tx.QueryRow(ctx, query, id.String()).Scan(
+			&idStr, &vs.Name, &vs.Description, &vs.State, &vs.CreatedAt,
 			&vs.ActivatedAt, &vs.DisabledAt, &vs.CreatedBy, &vs.Metadata)
+		if err != nil {
+			return err
+		}
+		vs.ID, err = uuid.FromString(idStr)
+		return err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get version set: %w", err)

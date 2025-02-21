@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
+	"text/tabwriter"
 
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/philslol/kritis3m_scalev2/control"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
@@ -114,4 +118,126 @@ func SuccessOutput(result interface{}, override string, outputFormat string) {
 
 	//nolint
 	fmt.Println(string(jsonBytes))
+}
+
+type TableColumn struct {
+	Header    string
+	FieldPath string
+}
+
+func PrintAsTable(items interface{}, columns []TableColumn) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+
+	// Print headers
+	headers := make([]string, len(columns))
+	for i, col := range columns {
+		headers[i] = col.Header
+	}
+	fmt.Fprintln(w, strings.Join(headers, "\t"))
+
+	// Get the slice value using reflection
+	val := reflect.ValueOf(items)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	if val.Kind() != reflect.Slice {
+		log.Error().Msg("Input must be a slice")
+		return
+	}
+
+	// Iterate over each item in the slice
+	for i := 0; i < val.Len(); i++ {
+		item := val.Index(i)
+		if item.Kind() == reflect.Ptr {
+			item = item.Elem()
+		}
+
+		// Build row values
+		values := make([]string, len(columns))
+		for j, col := range columns {
+			fieldValue := getFieldByPath(item, strings.Split(col.FieldPath, "."))
+			values[j] = formatValue(fieldValue)
+		}
+		fmt.Fprintln(w, strings.Join(values, "\t"))
+	}
+
+	w.Flush()
+}
+
+func getFieldByPath(v reflect.Value, path []string) reflect.Value {
+	for _, fieldName := range path {
+		if v.Kind() == reflect.Ptr {
+			v = v.Elem()
+		}
+		if v.Kind() != reflect.Struct {
+			return reflect.Value{}
+		}
+		v = v.FieldByName(fieldName)
+		if !v.IsValid() {
+			return reflect.Value{}
+		}
+	}
+	return v
+}
+
+func formatValue(v reflect.Value) string {
+	if !v.IsValid() {
+		return ""
+	}
+
+	switch v.Kind() {
+	case reflect.Ptr:
+		if v.IsNil() {
+			return ""
+		}
+		return formatValue(v.Elem())
+	case reflect.String:
+		return v.String()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return fmt.Sprintf("%d", v.Int())
+	case reflect.Bool:
+		return fmt.Sprintf("%v", v.Bool())
+	case reflect.Struct:
+		// Handle special types
+		if v.Type().String() == "*timestamp.Timestamp" {
+			if ts, ok := v.Interface().(*timestamp.Timestamp); ok && ts != nil {
+				return ts.AsTime().Format(HeadscaleDateTimeFormat)
+			}
+			return ""
+		}
+		// Handle protobuf enums
+		if v.MethodByName("String").IsValid() {
+			return v.MethodByName("String").Call(nil)[0].String()
+		}
+		return fmt.Sprintf("%v", v.Interface())
+	default:
+		return fmt.Sprintf("%v", v.Interface())
+	}
+}
+
+// Example usage for Node type
+func PrintNodesAsTable(nodes []*v1.Node) {
+	columns := []TableColumn{
+		{Header: "ID", FieldPath: "Id"},
+		{Header: "SERIAL NUMBER", FieldPath: "SerialNumber"},
+		{Header: "NETWORK INDEX", FieldPath: "NetworkIndex"},
+		{Header: "LOCALITY", FieldPath: "Locality"},
+		{Header: "LAST SEEN", FieldPath: "LastSeen"},
+		{Header: "VERSION SET ID", FieldPath: "VersionSetId"},
+	}
+	PrintAsTable(nodes, columns)
+}
+
+// Example usage for VersionSet type using the generic function
+func PrintVersionSetsAsTableGeneric(versionSets []*v1.VersionSet) {
+	columns := []TableColumn{
+		{Header: "ID", FieldPath: "Id"},
+		{Header: "NAME", FieldPath: "Name"},
+		{Header: "DESCRIPTION", FieldPath: "Description"},
+		{Header: "STATE", FieldPath: "State"},
+		{Header: "ACTIVATED AT", FieldPath: "ActivatedAt"},
+		{Header: "DISABLED AT", FieldPath: "DisabledAt"},
+		{Header: "CREATED BY", FieldPath: "CreatedBy"},
+	}
+	PrintAsTable(versionSets, columns)
 }

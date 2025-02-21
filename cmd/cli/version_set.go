@@ -1,10 +1,16 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"text/tabwriter"
+
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
+
+var outputFormat string
 
 func init() {
 	log.Debug().Msg("Registering version set commands")
@@ -31,6 +37,13 @@ func init() {
 	deleteVersionSetCmd.Flags().StringP("id", "i", "", "ID of the version set")
 	deleteVersionSetCmd.MarkFlagRequired("id")
 	versionSetCli.AddCommand(deleteVersionSetCmd)
+
+	listVersionSetsCmd.Flags().StringP("state", "s", "", "State of the version set: DRAFT, PENDING_DEPLOYMENT, ACTIVE, DISABLED")
+	versionSetCli.AddCommand(listVersionSetsCmd)
+
+	// Add output format flags
+	readVersionSetCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
+	listVersionSetsCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 }
 
 var versionSetCli = &cobra.Command{
@@ -93,10 +106,15 @@ var readVersionSetCmd = &cobra.Command{
 
 		rsp, err := client.GetVersionSet(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to read version set")
+			log.Fatal().Err(err).Msg("Failed to execute grpc get version set")
 		}
 
-		log.Info().Msgf("Version set: %v", rsp.GetVersionSet())
+		if HasMachineOutputFlag() {
+			SuccessOutput(rsp.GetVersionSet(), "", outputFormat)
+			return nil
+		}
+
+		PrintVersionSetsAsTable([]*v1.VersionSet{rsp.GetVersionSet()})
 		return nil
 	},
 }
@@ -161,4 +179,67 @@ var deleteVersionSetCmd = &cobra.Command{
 		log.Info().Msgf("Version set deleted: %v", rsp)
 		return nil
 	},
+}
+
+var listVersionSetsCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all version sets",
+	Long:  "List all version sets in the system",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		state, _ := cmd.Flags().GetString("state")
+
+		ctx, client, conn, cancel, err := getClient()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to get client")
+		}
+
+		defer cancel()
+		defer conn.Close()
+
+		request := &v1.ListVersionSetsRequest{}
+
+		if state != "" {
+			vs := v1.VersionState(v1.VersionState_value[state])
+			request.State = &vs
+		}
+
+		rsp, err := client.ListVersionSets(ctx, request)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to list version sets")
+		}
+
+		if HasMachineOutputFlag() {
+			SuccessOutput(rsp.GetVersionSets(), "", outputFormat)
+			return nil
+		}
+		PrintVersionSetsAsTable(rsp.GetVersionSets())
+		return nil
+	},
+}
+
+func PrintVersionSetsAsTable(versionSets []*v1.VersionSet) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "ID\tNAME\tDESCRIPTION\tSTATE\tACTIVATED AT\tDISABLED AT\tCREATED BY")
+
+	for _, vs := range versionSets {
+		activatedAt := ""
+		if vs.ActivatedAt != nil {
+			activatedAt = vs.ActivatedAt.AsTime().Format(HeadscaleDateTimeFormat)
+		}
+		disabledAt := ""
+		if vs.DisabledAt != nil {
+			disabledAt = vs.DisabledAt.AsTime().Format(HeadscaleDateTimeFormat)
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			vs.Id,
+			vs.Name,
+			vs.Description,
+			vs.State.String(),
+			activatedAt,
+			disabledAt,
+			vs.CreatedBy,
+		)
+	}
+	w.Flush()
 }

@@ -97,7 +97,7 @@ func TestReadVersionSet(t *testing.T) {
 			name: "successful read",
 			args: []string{
 				"version-set", "read",
-				"--id", "test-id",
+				"--id", "59b11997-4ff5-4eaa-a6c2-094a49a1c0a5",
 			},
 			expectedError: false,
 			mockResponse: &v1.VersionSetResponse{
