@@ -1,0 +1,57 @@
+
+# Ignore all binary files
+*.o
+*.a
+*.so
+*.exe
+*.dll
+*.out
+*.bin
+*.elf
+
+# Ignore build and temporary files
+/build/
+obj/
+tmp/
+*.log
+*.swp
+*.swo
+*.bak
+*.~*
+
+# Ignore package manager files
+node_modules/
+vendor/
+*.lock
+
+# Ignore hidden files and folders
+!.gitignore  # Allow .gitignore to be tracked
+!.gitattributes  # Allow .gitattributes if present
+!.gitmodules  # Allow .gitmodules if present
+
+
+# Ignore IDE and editor files
+.vscode/
+.idea/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# Ignore core dumps and debugging files
+core
+*.core
+*.dmp
+
+# Ignore archives
+*.tar
+*.tar.gz
+*.zip
+*.rar
+*.7z
+*.bz2
+
+# Ignore swap and cache files
+.cache/
+*.pyc
+*.pyo
+__pycache__/
