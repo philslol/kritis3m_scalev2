@@ -11,32 +11,32 @@ service Southbound{
   rpc CreateNode(CreateNodeRequest) returns (NodeResponse);
   rpc GetNode(GetNodeRequest) returns (NodeResponse);
   rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
-  rpc UpdateNode(UpdateNodeRequest) returns (NodeResponse);
+  rpc UpdateNode(UpdateNodeRequest) returns (google.protobuf.Empty);
   rpc DeleteNode(DeleteNodeRequest) returns (google.protobuf.Empty);
 
 
   rpc CreateEndpointConfig(CreateEndpointConfigRequest) returns (EndpointConfig);
   rpc GetEndpointConfig(GetEndpointConfigRequest) returns (EndpointConfig);
   rpc ListEndpointConfigs(ListEndpointConfigsRequest) returns (ListEndpointConfigsResponse);
-  rpc UpdateEndpointConfig(UpdateEndpointConfigRequest) returns (EndpointConfig);
+  rpc UpdateEndpointConfig(UpdateEndpointConfigRequest) returns (google.protobuf.Empty);
   rpc DeleteEndpointConfig(DeleteEndpointConfigRequest) returns (google.protobuf.Empty);
 
   rpc CreateGroup(CreateGroupRequest) returns (GroupResponse );
   rpc GetGroup(GetGroupRequest) returns (GroupResponse);
   rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
-  rpc UpdateGroup(UpdateGroupRequest) returns (GroupResponse);
+  rpc UpdateGroup(UpdateGroupRequest) returns (google.protobuf.Empty);
   rpc DeleteGroup(DeleteGroupRequest) returns (google.protobuf.Empty);
 
   rpc CreateHardwareConfig(CreateHardwareConfigRequest) returns (HardwareConfigResponse);
   rpc GetHardwareConfig(GetHardwareConfigRequest) returns (HardwareConfigResponse);
   rpc ListHardwareConfigs(ListHardwareConfigsRequest) returns (ListHardwareConfigsResponse);
-  rpc UpdateHardwareConfig(UpdateHardwareConfigRequest) returns (HardwareConfigResponse);
+  rpc UpdateHardwareConfig(UpdateHardwareConfigRequest) returns (google.protobuf.Empty);
   rpc DeleteHardwareConfig(DeleteHardwareConfigRequest) returns (google.protobuf.Empty);
 
   rpc CreateVersionSet(CreateVersionSetRequest) returns (VersionSetResponse);
   rpc GetVersionSet(GetVersionSetRequest) returns (VersionSetResponse);
   rpc ListVersionSets(ListVersionSetsRequest) returns (ListVersionSetsResponse);
-  rpc UpdateVersionSet(UpdateVersionSetRequest) returns (VersionSetResponse);
+  rpc UpdateVersionSet(UpdateVersionSetRequest) returns (google.protobuf.Empty);
   rpc DeleteVersionSet(DeleteVersionSetRequest) returns (google.protobuf.Empty);
   rpc ActivateVersionSet(ActivateVersionSetRequest) returns (VersionSetResponse);
   rpc DisableVersionSet(DisableVersionSetRequest) returns (VersionSetResponse);
@@ -105,7 +105,7 @@ message GetNodeRequest {
 }
 
 message ListNodesRequest {
-  string version_set_id = 1;
+  optional string version_set_id = 1;
   optional bool include=2;
 }
 

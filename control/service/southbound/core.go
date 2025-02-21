@@ -1,7 +1,7 @@
 package southbound
 
 import (
-	"github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	//include db
 	"context"
 
@@ -23,7 +23,6 @@ func NewSouthbound(db *db.StateManager) *SouthboundService {
 	return &SouthboundService{
 		db: db,
 	}
-
 }
 
 func (sb *SouthboundService) CreateEndpointConfig(ctx context.Context, req *v1.CreateEndpointConfigRequest) (*v1.EndpointConfig, error) {
@@ -70,25 +69,4 @@ func (sb *SouthboundService) UpdateHardwareConfig(ctx context.Context, req *v1.U
 }
 func (sb *SouthboundService) DeleteHardwareConfig(ctx context.Context, req *v1.DeleteHardwareConfigRequest) (*empty.Empty, error) {
 	return &emptypb.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteHardwareConfig not implemented")
-}
-func (sb *SouthboundService) CreateVersionSet(ctx context.Context, req *v1.CreateVersionSetRequest) (*v1.VersionSetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateVersionSet not implemented")
-}
-func (sb *SouthboundService) GetVersionSet(ctx context.Context, req *v1.GetVersionSetRequest) (*v1.VersionSetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetVersionSet not implemented")
-}
-func (sb *SouthboundService) ListVersionSets(ctx context.Context, req *v1.ListVersionSetsRequest) (*v1.ListVersionSetsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListVersionSets not implemented")
-}
-func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *v1.UpdateVersionSetRequest) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateVersionSet not implemented")
-}
-func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *v1.DeleteVersionSetRequest) (*empty.Empty, error) {
-	return &emptypb.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteVersionSet not implemented")
-}
-func (sb *SouthboundService) ActivateVersionSet(ctx context.Context, req *v1.ActivateVersionSetRequest) (*v1.VersionSetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ActivateVersionSet not implemented")
-}
-func (sb *SouthboundService) DisableVersionSet(ctx context.Context, req *v1.DisableVersionSetRequest) (*v1.VersionSetResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DisableVersionSet not implemented")
 }

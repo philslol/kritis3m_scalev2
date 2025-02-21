@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	// uuidpq "github.com/jackc/pgx-gofrs-uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // completeTransaction completes the current pending transaction.
@@ -82,6 +83,21 @@ func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID
 	_, err = tx.Exec(ctx, `UPDATE transactions SET status = 'active', completed_at = NOW() WHERE id = $1`, transactionID)
 	if err != nil {
 		return fmt.Errorf("failed to update transaction status: %v", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+// ExecuteInTransaction executes the given operation within a transaction
+func (s *StateManager) ExecuteInTransaction(ctx context.Context, operation func(pgx.Tx) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) // Will be ignored if transaction is committed
+
+	if err := operation(tx); err != nil {
+		return err
 	}
 
 	return tx.Commit(ctx)
