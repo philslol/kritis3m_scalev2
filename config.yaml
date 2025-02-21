@@ -1,18 +1,8 @@
 #all non absolute paths are added up with the directory of the config file
 # suppose path: ./my/relative/path -> /path/to/configfile/my/relative/path
-node_server:
-  address: ":8080"
-  log:
-    log_level: debug
-    mode: debug # release debug test
-  endpoint_config:
-    private_key: "./certs/privateKey.pem"
-    device_cert: "./certs/chain.pem" #device certificate chain
-    root_cert: "./certs/root.pem"
-    mutual_authentication: true
-    no_encryption: false
-    key_exchange_method: "KEX_DEFAULT"
-    key_log_file: "./tmp/keylog.txt"
+
+cli_timeout_s: 100 
+grpc_listen_addr: 127.0.0.1:50443
 
 database:
   postgres:
