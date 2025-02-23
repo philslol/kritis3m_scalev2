@@ -25,21 +25,6 @@ func NewSouthbound(db *db.StateManager) *SouthboundService {
 	}
 }
 
-func (sb *SouthboundService) CreateEndpointConfig(ctx context.Context, req *v1.CreateEndpointConfigRequest) (*v1.EndpointConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateEndpointConfig not implemented")
-}
-func (sb *SouthboundService) GetEndpointConfig(ctx context.Context, req *v1.GetEndpointConfigRequest) (*v1.EndpointConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetEndpointConfig not implemented")
-}
-func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.ListEndpointConfigsRequest) (*v1.ListEndpointConfigsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListEndpointConfigs not implemented")
-}
-func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *v1.UpdateEndpointConfigRequest) (*empty.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateEndpointConfig not implemented")
-}
-func (sb *SouthboundService) DeleteEndpointConfig(ctx context.Context, req *v1.DeleteEndpointConfigRequest) (*empty.Empty, error) {
-	return &empty.Empty{}, status.Errorf(codes.Unimplemented, "method DeleteEndpointConfig not implemented")
-}
 func (sb *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*v1.GroupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGroup not implemented")
 }
