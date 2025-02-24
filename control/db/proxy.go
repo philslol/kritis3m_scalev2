@@ -11,14 +11,14 @@ import (
 func (s *StateManager) CreateProxy(ctx context.Context, proxy *types.Proxy) (*types.Proxy, error) {
 	query := `
 	INSERT INTO proxies 
-		(node_id, group_id, state, proxy_type, server_endpoint_addr, client_endpoint_addr, version_set_id, state, created_by) 
+		(node_id, group_id, state, proxy_type, server_endpoint_addr, client_endpoint_addr, version_set_id, created_by) 
 	VALUES 
-		($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+		($1, $2, $3, $4, $5, $6, $7, $8) 
 	RETURNING id, created_at, updated_at`
 
 	err := s.pool.QueryRow(ctx, query,
 		proxy.NodeID, proxy.GroupID, proxy.State, proxy.ProxyType, proxy.ServerEndpointAddr,
-		proxy.ClientEndpointAddr, proxy.VersionSetID, proxy.VersionState, proxy.CreatedBy,
+		proxy.ClientEndpointAddr, proxy.VersionSetID, proxy.CreatedBy,
 	).Scan(&proxy.ID, &proxy.CreatedAt, &proxy.UpdatedAt)
 
 	if err != nil {
@@ -31,13 +31,13 @@ func (s *StateManager) CreateProxy(ctx context.Context, proxy *types.Proxy) (*ty
 // GetProxyByID retrieves a proxy by ID.
 func (s *StateManager) GetProxyByID(ctx context.Context, id int) (*types.Proxy, error) {
 	query := `SELECT id, node_id, group_id, state, proxy_type, server_endpoint_addr, 
-	client_endpoint_addr, version_set_id, state, created_at, updated_at, created_by FROM proxies WHERE id = $1`
+	client_endpoint_addr, version_set_id,  created_at, updated_at, created_by FROM proxies WHERE id = $1`
 
 	proxy := &types.Proxy{}
 	err := s.pool.QueryRow(ctx, query, id).Scan(
 		&proxy.ID, &proxy.NodeID, &proxy.GroupID, &proxy.State, &proxy.ProxyType,
 		&proxy.ServerEndpointAddr, &proxy.ClientEndpointAddr, &proxy.VersionSetID,
-		&proxy.VersionState, &proxy.CreatedAt, &proxy.UpdatedAt, &proxy.CreatedBy,
+		&proxy.CreatedAt, &proxy.UpdatedAt, &proxy.CreatedBy,
 	)
 
 	if err != nil {
@@ -50,7 +50,7 @@ func (s *StateManager) GetProxyByID(ctx context.Context, id int) (*types.Proxy, 
 // ListProxies retrieves all proxy records.
 func (r *StateManager) ListProxies(ctx context.Context) ([]types.Proxy, error) {
 	query := `SELECT id, node_id, group_id, state, proxy_type, server_endpoint_addr, 
-	client_endpoint_addr, version_set_id, state, created_at, updated_at, created_by FROM proxies`
+	client_endpoint_addr, version_set_id,  created_at, updated_at, created_by FROM proxies`
 
 	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
@@ -65,7 +65,7 @@ func (r *StateManager) ListProxies(ctx context.Context) ([]types.Proxy, error) {
 		err := rows.Scan(
 			&proxy.ID, &proxy.NodeID, &proxy.GroupID, &proxy.State, &proxy.ProxyType,
 			&proxy.ServerEndpointAddr, &proxy.ClientEndpointAddr, &proxy.VersionSetID,
-			&proxy.VersionState, &proxy.CreatedAt, &proxy.UpdatedAt, &proxy.CreatedBy,
+			&proxy.CreatedAt, &proxy.UpdatedAt, &proxy.CreatedBy,
 		)
 		if err != nil {
 			log.Println("Error scanning proxy row:", err)
@@ -79,7 +79,7 @@ func (r *StateManager) ListProxies(ctx context.Context) ([]types.Proxy, error) {
 // GetProxiesByNodeID retrieves proxies associated with a specific node_id.
 func (s *StateManager) GetProxiesByNodeID(ctx context.Context, nodeID int) ([]*types.Proxy, error) {
 	query := `SELECT id, node_id, group_id, state, proxy_type, server_endpoint_addr, 
-	client_endpoint_addr, version_set_id, state, created_at, updated_at, created_by FROM proxies WHERE node_id = $1`
+	client_endpoint_addr, version_set_id, created_at, updated_at, created_by FROM proxies WHERE node_id = $1`
 
 	rows, err := s.pool.Query(ctx, query, nodeID)
 	if err != nil {
@@ -94,7 +94,7 @@ func (s *StateManager) GetProxiesByNodeID(ctx context.Context, nodeID int) ([]*t
 		err := rows.Scan(
 			&proxy.ID, &proxy.NodeID, &proxy.GroupID, &proxy.State, &proxy.ProxyType,
 			&proxy.ServerEndpointAddr, &proxy.ClientEndpointAddr, &proxy.VersionSetID,
-			&proxy.VersionState, &proxy.CreatedAt, &proxy.UpdatedAt, &proxy.CreatedBy,
+			&proxy.CreatedAt, &proxy.UpdatedAt, &proxy.CreatedBy,
 		)
 		if err != nil {
 			log.Println("Error scanning proxy row:", err)

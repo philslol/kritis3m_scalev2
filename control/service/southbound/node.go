@@ -127,8 +127,8 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 		for i, proxy := range proxies {
 			node_rsp.Proxy[i] = &v1.Proxy{
 				Id:                 int32(proxy.ID),
-				NodeId:             int32(*proxy.NodeID),
-				GroupId:            int32(*proxy.GroupID),
+				NodeId:             int32(proxy.NodeID),
+				GroupId:            int32(proxy.GroupID),
 				State:              proxy.State,
 				ProxyType:          v1.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
 				ServerEndpointAddr: proxy.ServerEndpointAddr,

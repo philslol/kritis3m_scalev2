@@ -40,6 +40,13 @@ service Southbound{
   rpc DeleteVersionSet(DeleteVersionSetRequest) returns (google.protobuf.Empty);
   rpc ActivateVersionSet(ActivateVersionSetRequest) returns (VersionSetResponse);
   rpc DisableVersionSet(DisableVersionSetRequest) returns (VersionSetResponse);
+
+
+  rpc CreateProxy(CreateProxyRequest) returns (ProxyResponse);
+  rpc GetProxy(GetProxyRequest) returns (ProxyResponse);
+  rpc ListProxies(ListProxiesRequest) returns (ListProxiesResponse);
+  rpc UpdateProxy(UpdateProxyRequest) returns (google.protobuf.Empty);
+  rpc DeleteProxy(DeleteProxyRequest) returns (google.protobuf.Empty);
 }
 
 enum ProxyType {
@@ -192,7 +199,7 @@ message Group {
 message CreateGroupRequest {
   string name = 1;
   int32 log_level = 2;
-  optional int32 endpoint_config_id = 3;
+  int32 endpoint_config_id = 3;
   optional int32 legacy_config_id = 4;
   string version_set_id = 5;
   string created_by = 6;
@@ -211,7 +218,7 @@ message GroupResponse {
 }
 
 message ListGroupsRequest {
-  string version_set_id = 1;
+  optional string version_set_id = 1;
   bool include_endpoints= 2;
 }
 
@@ -221,7 +228,7 @@ message ListGroupsResponse {
 
 message UpdateGroupRequest {
   int32 id = 1;
-  string version_set_id = 2;
+  optional string version_set_id = 2;
   optional string name = 3;
   optional int32 log_level = 4;
   optional int32 endpoint_config_id = 5;
@@ -294,6 +301,10 @@ message Proxy {
   string created_by = 9;
 }
 
+message ProxyResponse {
+  Proxy proxy = 1;
+}
+
 
 message CreateProxyRequest {
   int32 node_id = 1;
@@ -328,7 +339,7 @@ message ListProxiesResponse {
 
 message UpdateProxyRequest {
   int32 id = 1;
-  string version_set_id = 2;
+  optional string version_set_id = 2;
   optional bool state = 3;
   optional ProxyType proxy_type = 4;
   optional int32 group_id = 5;

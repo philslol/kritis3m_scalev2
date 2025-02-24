@@ -53,16 +53,15 @@ type Node struct {
 }
 
 type Group struct {
-	ID               int          `json:"id"`
-	Name             string       `json:"name"`
-	LogLevel         int          `json:"log_level"`
-	EndpointConfigID *int         `json:"endpoint_config_id,omitempty"`
-	LegacyConfigID   *int         `json:"legacy_config_id,omitempty"`
-	State            VersionState `json:"state"`
-	VersionSetID     *uuid.UUID   `json:"version_set_id,omitempty"`
-	CreatedAt        time.Time    `json:"created_at"`
-	UpdatedAt        time.Time    `json:"updated_at"`
-	CreatedBy        string       `json:"created_by"`
+	ID               int        `json:"id"`
+	Name             string     `json:"name"`
+	LogLevel         int        `json:"log_level"`
+	EndpointConfigID *int       `json:"endpoint_config_id,omitempty"`
+	LegacyConfigID   *int       `json:"legacy_config_id,omitempty"`
+	VersionSetID     *uuid.UUID `json:"version_set_id,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	CreatedBy        string     `json:"created_by"`
 }
 
 type HardwareConfig struct {
@@ -78,18 +77,18 @@ type HardwareConfig struct {
 }
 
 type Proxy struct {
-	ID                 int        `json:"id"`
-	NodeID             *int       `json:"node_id,omitempty"`
-	GroupID            *int       `json:"group_id,omitempty"`
-	State              bool       `json:"state"`
-	ProxyType          ProxyType  `json:"proxy_type"`
-	ServerEndpointAddr string     `json:"server_endpoint_addr"`
-	ClientEndpointAddr string     `json:"client_endpoint_addr"`
-	VersionSetID       *uuid.UUID `json:"version_set_id,omitempty"`
-	VersionState       string     `json:"version_state"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
-	CreatedBy          string     `json:"created_by"`
+	ID                 int       `json:"id"`
+	NodeID             int       `json:"node_id,omitempty"`
+	GroupID            int       `json:"group_id,omitempty"`
+	State              bool      `json:"state"`
+	ProxyType          ProxyType `json:"proxy_type"`
+	ServerEndpointAddr string    `json:"server_endpoint_addr"`
+	ClientEndpointAddr string    `json:"client_endpoint_addr"`
+	VersionSetID       uuid.UUID `json:"version_set_id,omitempty"`
+	VersionState       string    `json:"version_state"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	CreatedBy          string    `json:"created_by"`
 }
 
 type VersionSet struct {
