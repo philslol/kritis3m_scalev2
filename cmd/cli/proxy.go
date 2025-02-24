@@ -27,9 +27,13 @@ func init() {
 	createProxyCmd.Flags().Int32P("group-id", "g", 0, "ID of the group")
 	createProxyCmd.MarkFlagRequired("group-id")
 	createProxyCmd.Flags().BoolP("state", "s", true, "State of the proxy")
+
 	createProxyCmd.Flags().StringP("proxy-type", "t", "FORWARD", "Type of proxy (FORWARD, REVERSE, TLSTLS)")
+	createProxyCmd.MarkFlagRequired("proxy-type")
+
 	createProxyCmd.Flags().StringP("server-endpoint", "e", "", "Server endpoint address")
 	createProxyCmd.MarkFlagRequired("server-endpoint")
+
 	createProxyCmd.Flags().StringP("client-endpoint", "c", "", "Client endpoint address")
 	createProxyCmd.MarkFlagRequired("client-endpoint")
 	createProxyCmd.Flags().StringP("version-number", "v", "", "Version set ID")

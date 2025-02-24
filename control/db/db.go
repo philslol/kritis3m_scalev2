@@ -2,6 +2,30 @@ package db
 
 const schemaSQL = `
 
+CREATE TYPE proxy_type AS ENUM ('forward', 'reverse', 'tlstls');
+CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
+CREATE TYPE transaction_status AS ENUM ('pending', 'active', 'failed', 'rollback');
+CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
+CREATE TYPE asl_key_exchange_method AS ENUM (
+    'ASL_KEX_DEFAULT',
+    'ASL_KEX_CLASSIC_SECP256',
+    'ASL_KEX_CLASSIC_SECP384',
+    'ASL_KEX_CLASSIC_SECP521',
+    'ASL_KEX_CLASSIC_X25519',
+    'ASL_KEX_CLASSIC_X448',
+    'ASL_KEX_PQC_MLKEM512',
+    'ASL_KEX_PQC_MLKEM768',
+    'ASL_KEX_PQC_MLKEM1024',
+    'ASL_KEX_HYBRID_SECP256_MLKEM512',
+    'ASL_KEX_HYBRID_SECP384_MLKEM768',
+    'ASL_KEX_HYBRID_SECP256_MLKEM768',
+    'ASL_KEX_HYBRID_SECP521_MLKEM1024',
+    'ASL_KEX_HYBRID_SECP384_MLKEM1024',
+    'ASL_KEX_HYBRID_X25519_MLKEM512',
+    'ASL_KEX_HYBRID_X448_MLKEM768',
+    'ASL_KEX_HYBRID_X25519_MLKEM768'
+);
+
 
 -- Version Management Table with constraint
 CREATE TABLE IF NOT EXISTS version_sets (
@@ -382,27 +406,4 @@ BEGIN
     RETURN new_transaction_id;
 END;
 $$ LANGUAGE plpgsql;
-CREATE TYPE proxy_type AS ENUM ('forward', 'reverse', 'tlstls');
-CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
-CREATE TYPE transaction_status AS ENUM ('pending', 'active', 'failed', 'rollback');
-CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
-CREATE TYPE asl_key_exchange_method AS ENUM (
-    'ASL_KEX_DEFAULT',
-    'ASL_KEX_CLASSIC_SECP256',
-    'ASL_KEX_CLASSIC_SECP384',
-    'ASL_KEX_CLASSIC_SECP521',
-    'ASL_KEX_CLASSIC_X25519',
-    'ASL_KEX_CLASSIC_X448',
-    'ASL_KEX_PQC_MLKEM512',
-    'ASL_KEX_PQC_MLKEM768',
-    'ASL_KEX_PQC_MLKEM1024',
-    'ASL_KEX_HYBRID_SECP256_MLKEM512',
-    'ASL_KEX_HYBRID_SECP384_MLKEM768',
-    'ASL_KEX_HYBRID_SECP256_MLKEM768',
-    'ASL_KEX_HYBRID_SECP521_MLKEM1024',
-    'ASL_KEX_HYBRID_SECP384_MLKEM1024',
-    'ASL_KEX_HYBRID_X25519_MLKEM512',
-    'ASL_KEX_HYBRID_X448_MLKEM768',
-    'ASL_KEX_HYBRID_X25519_MLKEM768'
-);
 `
