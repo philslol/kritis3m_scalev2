@@ -6,23 +6,11 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/philslol/kritis3m_scalev2/control/db"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 )
 
-type Server struct {
-	db *db.StateManager
-	v1.UnimplementedSouthboundServer
-}
-
-func NewServer(db *db.StateManager) *Server {
-	return &Server{
-		db: db,
-	}
-}
-
-func (s *Server) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*v1.GroupResponse, error) {
+func (s *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*v1.GroupResponse, error) {
 	group := &types.Group{
 		Name:     req.GetName(),
 		LogLevel: int(req.GetLogLevel()),
@@ -50,7 +38,7 @@ func (s *Server) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*
 	return convertGroupToResponse(group), nil
 }
 
-func (s *Server) GetGroup(ctx context.Context, req *v1.GetGroupRequest) (*v1.GroupResponse, error) {
+func (s *SouthboundService) GetGroup(ctx context.Context, req *v1.GetGroupRequest) (*v1.GroupResponse, error) {
 	group, err := s.db.GetByID(ctx, int(req.GetId()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get group: %v", err)
@@ -59,7 +47,7 @@ func (s *Server) GetGroup(ctx context.Context, req *v1.GetGroupRequest) (*v1.Gro
 	return convertGroupToResponse(group), nil
 }
 
-func (s *Server) ListGroups(ctx context.Context, req *v1.ListGroupsRequest) (*v1.ListGroupsResponse, error) {
+func (s *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRequest) (*v1.ListGroupsResponse, error) {
 	var response *v1.ListGroupsResponse
 	if req.VersionSetId != nil {
 		versionID := uuid.FromStringOrNil(req.GetVersionSetId())
@@ -81,7 +69,7 @@ func (s *Server) ListGroups(ctx context.Context, req *v1.ListGroupsRequest) (*v1
 	return response, nil
 }
 
-func (s *Server) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*empty.Empty, error) {
+func (s *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*empty.Empty, error) {
 	updates := make(map[string]interface{})
 
 	if req.Name != nil {
@@ -109,7 +97,7 @@ func (s *Server) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*
 	return &empty.Empty{}, nil
 }
 
-func (s *Server) DeleteGroup(ctx context.Context, req *v1.DeleteGroupRequest) (*empty.Empty, error) {
+func (s *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroupRequest) (*empty.Empty, error) {
 	if err := s.db.Delete(ctx, "groups", "id", fmt.Sprintf("%d", req.GetId())); err != nil {
 		return nil, fmt.Errorf("failed to delete group: %v", err)
 	}
