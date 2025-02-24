@@ -382,7 +382,6 @@ BEGIN
     RETURN new_transaction_id;
 END;
 $$ LANGUAGE plpgsql;
-
 CREATE TYPE proxy_type AS ENUM ('forward', 'reverse', 'tlstls');
 CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
 CREATE TYPE transaction_status AS ENUM ('pending', 'active', 'failed', 'rollback');

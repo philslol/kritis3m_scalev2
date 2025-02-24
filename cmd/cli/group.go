@@ -21,8 +21,8 @@ func init() {
 	createGroupCmd.Flags().Int32P("endpoint-config-id", "e", 0, "Endpoint config ID")
 	createGroupCmd.MarkFlagRequired("endpoint-config-id")
 
-	createGroupCmd.Flags().StringP("version_number", "v", "", "Version set ID")
-	createGroupCmd.MarkFlagRequired("version_number")
+	createGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	createGroupCmd.MarkFlagRequired("version-number")
 
 	createGroupCmd.Flags().Int32P("log-level", "l", 0, "Log level for the group")
 	createGroupCmd.Flags().Int32P("legacy-config-id", "c", 0, "Legacy config ID")
@@ -31,14 +31,14 @@ func init() {
 
 	// Read command flags
 	readGroupCmd.Flags().Int32P("id", "i", 0, "ID of the group")
-	readGroupCmd.Flags().StringP("version_number", "v", "", "Version set ID to list groups for")
+	readGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID to list groups for")
 	groupCli.AddCommand(readGroupCmd)
 
 	// Update command flags
 	updateGroupCmd.Flags().Int32P("id", "i", 0, "ID of the group")
 	updateGroupCmd.MarkFlagRequired("id")
 	updateGroupCmd.Flags().StringP("name", "n", "", "Name of the group")
-	updateGroupCmd.Flags().StringP("version_number", "v", "", "Version set ID to list groups for")
+	updateGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID to list groups for")
 	updateGroupCmd.Flags().Int32P("endpoint-config-id", "e", 0, "Endpoint config ID")
 	updateGroupCmd.Flags().Int32P("log-level", "l", 0, "Log level for the group")
 	updateGroupCmd.Flags().Int32P("legacy-config-id", "c", 0, "Legacy config ID")
@@ -76,7 +76,7 @@ var createGroupCmd = &cobra.Command{
 			legacy = &legacyConfigID
 		}
 
-		versionSetID, _ := cmd.Flags().GetString("version_number")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 		if versionSetID == "" {
 			log.Error().Msg("no version set id provided")
 			return fmt.Errorf("no version set id provided")
@@ -126,7 +126,7 @@ var readGroupCmd = &cobra.Command{
 	Long:  "Read and display details of a specific group",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetInt32("id")
-		versionSetId, _ := cmd.Flags().GetString("version_number")
+		versionSetId, _ := cmd.Flags().GetString("version-number")
 
 		if id == 0 && versionSetId == "" {
 			return fmt.Errorf("either id or version-set-id must be provided")
@@ -187,7 +187,7 @@ var updateGroupCmd = &cobra.Command{
 		endpointConfigID, _ := cmd.Flags().GetInt32("endpoint-config-id")
 		logLevel, _ := cmd.Flags().GetInt32("log-level")
 		legacyConfigID, _ := cmd.Flags().GetInt32("legacy-config-id")
-		versionSetID, _ := cmd.Flags().GetString("version_number")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -211,7 +211,7 @@ var updateGroupCmd = &cobra.Command{
 		if cmd.Flags().Changed("log-level") {
 			request.LogLevel = &logLevel
 		}
-		if cmd.Flags().Changed("version_number") {
+		if cmd.Flags().Changed("version-number") {
 			request.VersionSetId = &versionSetID
 		}
 

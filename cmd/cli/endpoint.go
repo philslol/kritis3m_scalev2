@@ -22,7 +22,7 @@ func init() {
 	createEndpointCmd.Flags().StringP("kex-method", "k", "ASL_KEX_DEFAULT", "ASL key exchange method")
 	createEndpointCmd.Flags().StringP("cipher", "c", "", "Cipher configuration")
 	createEndpointCmd.Flags().StringP("created-by", "u", "", "User creating the endpoint")
-	createEndpointCmd.Flags().StringP("version_number", "v", "", "Reference to the version")
+	createEndpointCmd.Flags().StringP("version-number", "v", "", "Reference to the version")
 	endpointCli.AddCommand(createEndpointCmd)
 
 	readEndpointCmd.Flags().Int32P("id", "i", 0, "ID of the endpoint")
@@ -42,7 +42,7 @@ func init() {
 	deleteEndpointCmd.MarkFlagRequired("id")
 	endpointCli.AddCommand(deleteEndpointCmd)
 
-	listEndpointsCmd.Flags().StringP("version_number", "v", "", "Reference to the version")
+	listEndpointsCmd.Flags().StringP("version-number", "v", "", "Reference to the version")
 	endpointCli.AddCommand(listEndpointsCmd)
 
 	// Add output format flags
@@ -67,7 +67,7 @@ var createEndpointCmd = &cobra.Command{
 		kexMethod, _ := cmd.Flags().GetString("kex-method")
 		cipher, _ := cmd.Flags().GetString("cipher")
 		createdBy, _ := cmd.Flags().GetString("created-by")
-		versionSetID, _ := cmd.Flags().GetString("version_number")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -209,7 +209,7 @@ var listEndpointsCmd = &cobra.Command{
 	Short: "List all endpoints",
 	Long:  "List all endpoints in the system",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		versionSetID, _ := cmd.Flags().GetString("version_number")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {

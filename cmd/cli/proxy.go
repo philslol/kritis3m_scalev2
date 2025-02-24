@@ -32,7 +32,7 @@ func init() {
 	createProxyCmd.MarkFlagRequired("server-endpoint")
 	createProxyCmd.Flags().StringP("client-endpoint", "c", "", "Client endpoint address")
 	createProxyCmd.MarkFlagRequired("client-endpoint")
-	createProxyCmd.Flags().StringP("version-set-id", "v", "", "Version set ID")
+	createProxyCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	createProxyCmd.Flags().StringP("created-by", "u", "", "User creating the proxy")
 	proxyCli.AddCommand(createProxyCmd)
 
@@ -52,7 +52,7 @@ func init() {
 	deleteProxyCmd.MarkFlagRequired("id")
 	proxyCli.AddCommand(deleteProxyCmd)
 
-	listProxiesCmd.Flags().StringP("version-set-id", "v", "", "Version set ID")
+	listProxiesCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	proxyCli.AddCommand(listProxiesCmd)
 
 	// Add output format flags
@@ -71,7 +71,7 @@ var createProxyCmd = &cobra.Command{
 		proxyType, _ := cmd.Flags().GetString("proxy-type")
 		serverEndpoint, _ := cmd.Flags().GetString("server-endpoint")
 		clientEndpoint, _ := cmd.Flags().GetString("client-endpoint")
-		versionSetID, _ := cmd.Flags().GetString("version-set-id")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 		createdBy, _ := cmd.Flags().GetString("created-by")
 
 		ctx, client, conn, cancel, err := getClient()
@@ -238,7 +238,7 @@ var listProxiesCmd = &cobra.Command{
 	Short: "List all proxies",
 	Long:  "List all proxies in the system",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		versionSetID, _ := cmd.Flags().GetString("version-set-id")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
