@@ -7,6 +7,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
+	"github.com/rs/zerolog/log"
 )
 
 // VersionSet represents a row in the version_sets table.
@@ -21,6 +22,7 @@ func (s *StateManager) CreateVersionSet(ctx context.Context, vs types.VersionSet
 		return tx.QueryRow(ctx, query, vs.Name, vs.Description, vs.CreatedBy, vs.Metadata).Scan(&id)
 	})
 	if err != nil {
+		log.Err(err).Msg("failed to create version set")
 		return uuid.Nil, fmt.Errorf("failed to create version set: %w", err)
 	}
 	return id, nil
@@ -28,7 +30,7 @@ func (s *StateManager) CreateVersionSet(ctx context.Context, vs types.VersionSet
 
 // DeleteVersionSet soft deletes a version set by setting its disabled_at timestamp.
 func (s *StateManager) DeleteVersionSet(ctx context.Context, id uuid.UUID) error {
-	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
 			UPDATE version_sets 
 			SET disabled_at = NOW()
@@ -43,6 +45,11 @@ func (s *StateManager) DeleteVersionSet(ctx context.Context, id uuid.UUID) error
 		}
 		return nil
 	})
+	if err != nil {
+		log.Err(err).Msg("failed to delete version set")
+		return err
+	}
+	return nil
 }
 
 // GetVersionSetByID retrieves a version set by its ID.
@@ -63,7 +70,8 @@ func (s *StateManager) GetVersionSetByID(ctx context.Context, id uuid.UUID) (*ty
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get version set: %w", err)
+		log.Err(err).Msg("failed to get version set by id")
+		return nil, err
 	}
 	return &vs, nil
 }

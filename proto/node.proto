@@ -29,7 +29,6 @@ service Southbound{
 
   rpc CreateHardwareConfig(CreateHardwareConfigRequest) returns (HardwareConfigResponse);
   rpc GetHardwareConfig(GetHardwareConfigRequest) returns (HardwareConfigResponse);
-  rpc ListHardwareConfigs(ListHardwareConfigsRequest) returns (ListHardwareConfigsResponse);
   rpc UpdateHardwareConfig(UpdateHardwareConfigRequest) returns (google.protobuf.Empty);
   rpc DeleteHardwareConfig(DeleteHardwareConfigRequest) returns (google.protobuf.Empty);
 
@@ -44,7 +43,6 @@ service Southbound{
 
   rpc CreateProxy(CreateProxyRequest) returns (ProxyResponse);
   rpc GetProxy(GetProxyRequest) returns (ProxyResponse);
-  rpc ListProxies(ListProxiesRequest) returns (ListProxiesResponse);
   rpc UpdateProxy(UpdateProxyRequest) returns (google.protobuf.Empty);
   rpc DeleteProxy(DeleteProxyRequest) returns (google.protobuf.Empty);
 }
@@ -104,10 +102,15 @@ message CreateNodeRequest {
   string version_set_id = 4;
   string user=5;
 }
-
+message NodeNameQuery {
+  string version_set_id = 1;
+  string serial_number = 2;
+}
 message GetNodeRequest {
-  int32 id = 1;
-  string version_set_id = 2;
+  oneof query {
+    int32 id = 1;
+    NodeNameQuery node_query = 2;
+  }
   optional bool include=3;
 }
 
@@ -121,16 +124,18 @@ message ListNodesResponse {
 }
 
 message UpdateNodeRequest {
-  int32 id = 1;
-  optional string serial_number = 2;
-  optional int32 network_index = 3;
-  optional string locality = 4;
-  optional string version_set_id = 5;
-
+  oneof query {
+    int32 id = 1;
+    NodeNameQuery node_query = 2;
+  }
+  optional int32 network_index = 4;
+  optional string locality = 5;
+  optional google.protobuf.Timestamp last_seen = 6;
 }
 
 message DeleteNodeRequest {
-  int32 id = 1;
+  string serial_number = 1;
+  string version_set_id = 2;
 }
 
 // -------------------------------------ENDPOINTCONFIG------------------------------------
@@ -146,6 +151,11 @@ message EndpointConfig {
   string created_by = 9;
 }
 
+message EndpointConfigNameQuery {
+  string version_set_id = 1;
+  string name = 2;
+}
+
 message CreateEndpointConfigRequest {
   string name = 1;
   bool mutual_auth = 2;
@@ -157,12 +167,14 @@ message CreateEndpointConfigRequest {
 }
 
 message GetEndpointConfigRequest {
-  int32 id = 1;
-  string version_set_id = 2;
+  oneof query {
+    int32 id = 1;
+    EndpointConfigNameQuery endpoint_config_query = 2;
+  }
 }
 
 message ListEndpointConfigsRequest {
-  string version_set_id = 1;
+  optional string version_set_id = 1;
 }
 
 message ListEndpointConfigsResponse {
@@ -170,8 +182,10 @@ message ListEndpointConfigsResponse {
 }
 
 message UpdateEndpointConfigRequest {
-  int32 id = 1;
-  string version_set_id = 2;
+  oneof query {
+    int32 id = 1;
+    EndpointConfigNameQuery endpoint_config_query = 2;
+  }
   optional string name = 3;
   optional bool mutual_auth = 4;
   optional bool no_encryption = 5;
@@ -189,8 +203,8 @@ message Group {
   int32 id = 1;
   string name = 2;
   int32 log_level = 3;
-  int32 endpoint_config_id = 4;
-  optional int32 legacy_config_id = 5;
+  string endpoint_config_name = 4;
+  optional string legacy_config_name = 5;
   string version_set_id = 7;
   string created_by = 8;
   string state = 9;
@@ -199,16 +213,23 @@ message Group {
 message CreateGroupRequest {
   string name = 1;
   int32 log_level = 2;
-  int32 endpoint_config_id = 3;
-  optional int32 legacy_config_id = 4;
+  string endpoint_config_name = 3;
+  optional string legacy_config_name = 4;
   string version_set_id = 5;
   string created_by = 6;
 }
 
+message GroupNameQuery {
+    string version_set_id = 1;
+    string group_name = 2;
+}
 message GetGroupRequest {
-  int32 id = 1;
-  string version_set_id = 2;
-  bool include_endpoints = 3;
+  oneof query {
+    int32 id = 1;
+    GroupNameQuery group_query = 2;
+    string version_set_id = 3;
+  }
+  bool include_endpoints = 4;
 }
 
 message GroupResponse {
@@ -227,12 +248,14 @@ message ListGroupsResponse {
 }
 
 message UpdateGroupRequest {
-  int32 id = 1;
-  optional string version_set_id = 2;
-  optional string name = 3;
-  optional int32 log_level = 4;
-  optional int32 endpoint_config_id = 5;
-  optional int32 legacy_config_id = 6;
+  oneof query {
+    int32 id = 1;
+    GroupNameQuery group_query = 2;
+  }
+  optional string version_set_id = 3;
+  optional int32 log_level = 5;
+  optional string endpoint_config_name = 6;
+  optional string legacy_config_name = 7;
 }
 
 message DeleteGroupRequest {
@@ -244,7 +267,7 @@ message DeleteGroupRequest {
 /*----------------------------- HardwareConfigs-------------------------------*/
 message HardwareConfig {
   int32 id = 1;
-  int32 node_id = 2;
+  string node_serial_number = 2;
   string device = 3;
   string ip_cidr = 4;
   string version_set_id = 5;
@@ -253,30 +276,28 @@ message HardwareConfig {
 
 
 message CreateHardwareConfigRequest {
-  int32 node_id = 1;
+  string node_serial_number = 1;
   string device = 2;
   string ip_cidr = 3;
   string version_set_id = 4;
   string created_by = 5;
 }
-
+message HardwareConfigNameQuery {
+  string version_set_id = 1;
+  string node_serial_number = 2;
+}
 message GetHardwareConfigRequest {
-  int32 id = 1;
-  string version_set_id = 2;
+  oneof query {
+    int32 id = 1;//get one hwconfig 
+    HardwareConfigNameQuery hardware_config_query = 2;//get all hws for one node
+    string version_set_id = 3; //get all hws for one version set
+  }
 }
 
 message HardwareConfigResponse {
-  HardwareConfig hardware_config = 1;
+  repeated HardwareConfig hardware_config = 1;
 }
 
-message ListHardwareConfigsRequest {
-  int32 node_id = 1;
-  string version_set_id = 2;
-}
-
-message ListHardwareConfigsResponse {
-  repeated HardwareConfig hardware_configs = 1;
-}
 
 message UpdateHardwareConfigRequest {
   int32 id = 1;
@@ -291,60 +312,68 @@ message DeleteHardwareConfigRequest {
 
 message Proxy {
   int32 id = 1;
-  int32 node_id = 2;
-  int32 group_id = 3;
+  string node_serial_number = 2;
+  string group_name = 3;
   bool state = 4;
   ProxyType proxy_type = 5;
   string server_endpoint_addr = 6;
   string client_endpoint_addr = 7;
   string version_set_id = 8;
   string created_by = 9;
+  string name = 10;
 }
 
 message ProxyResponse {
-  Proxy proxy = 1;
+  repeated Proxy proxy = 1;
 }
 
 
 message CreateProxyRequest {
-  int32 node_id = 1;
-  int32 group_id = 2;
+  string node_serial_number = 1;
+  string group_name = 2;
   bool state = 3;
   ProxyType proxy_type = 4;
   string server_endpoint_addr = 5;
   string client_endpoint_addr = 6;
   string created_by = 7;
   string version_set_id = 8;
+  string name = 9;
+}
+
+message ProxyNameQuery {
+    string version_set_id = 1;
+    string name = 2;
+}
+
+message ProxySerialQuery {
+    string version_set_id = 1;
+    string serial = 2;
 }
 
 message GetProxyRequest {
-  int32 id = 1;
-}
-
-message GetProxyResponse {
-  Proxy proxy = 1;
-}
-
-message ListProxiesRequest {
-  string version_set_id = 1;
-  oneof query{
-    int32 node_id = 2;
-    int32 group_id = 3;
+  oneof query {
+    int32 id = 1;
+    ProxyNameQuery name_query = 2;
+    ProxySerialQuery serial_query = 3;
   }
 }
 
-message ListProxiesResponse {
-  repeated Proxy proxies = 1;
+message GetProxyResponse {
+  repeated Proxy proxy = 1;
 }
 
+
 message UpdateProxyRequest {
-  int32 id = 1;
-  optional string version_set_id = 2;
+  oneof query {
+    int32 id = 1;
+    ProxyNameQuery name_query = 2;
+  }
   optional bool state = 3;
   optional ProxyType proxy_type = 4;
   optional int32 group_id = 5;
   optional string server_endpoint_addr = 6;
   optional string client_endpoint_addr = 7;
+  optional string name = 8;
 }
 
 message DeleteProxyRequest {
