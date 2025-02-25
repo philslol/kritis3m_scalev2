@@ -13,10 +13,18 @@ import (
 )
 
 func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.ListEndpointConfigsRequest) (*v1.ListEndpointConfigsResponse, error) {
-	log.Debug().Msgf("Listing endpoint configs")
+	var versionSetID uuid.UUID
+	var configs []*types.EndpointConfig
+	var err error
 
-	versionSetID := uuid.FromStringOrNil(*req.VersionSetId)
-	configs, err := sb.db.ListEndpointConfigs(ctx, &versionSetID)
+	if req.VersionSetId != nil {
+		versionSetID = uuid.FromStringOrNil(*req.VersionSetId)
+
+		configs, err = sb.db.ListEndpointConfigs(ctx, &versionSetID)
+	} else {
+		configs, err = sb.db.ListEndpointConfigs(ctx, nil)
+	}
+
 	if err != nil {
 		log.Err(err).Msgf("Failed to list endpoint configs")
 		return nil, err
@@ -27,8 +35,7 @@ func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.Li
 	}
 
 	for i, config := range configs {
-		var versionSetId string
-		versionSetId = config.VersionSetID.String()
+		versionSetId := config.VersionSetID.String()
 		response.Configs[i] = &v1.EndpointConfig{
 			Id:                   int32(config.ID),
 			Name:                 config.Name,

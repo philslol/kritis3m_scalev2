@@ -27,6 +27,7 @@ func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProx
 	log.Debug().Msgf("proxyTypeStr: %s", proxyTypeStr)
 
 	proxy := &types.Proxy{
+		Name:               req.Name,
 		NodeSerial:         req.NodeSerialNumber,
 		GroupName:          req.GroupName,
 		State:              req.State,
@@ -53,6 +54,7 @@ func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProx
 				ServerEndpointAddr: createdProxy.ServerEndpointAddr,
 				ClientEndpointAddr: createdProxy.ClientEndpointAddr,
 				VersionSetId:       createdProxy.VersionSetID.String(),
+				Name:               createdProxy.Name,
 				CreatedBy:          createdProxy.CreatedBy,
 			},
 		},
@@ -80,6 +82,22 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 		versionSetID, err := uuid.FromString(query.SerialQuery.GetVersionSetId())
 		serialNumber := query.SerialQuery.GetSerial()
 		proxies, err = sb.db.GetProxyBySerialNumber(ctx, serialNumber, versionSetID)
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
+		}
+	case *v1.GetProxyRequest_VersionSetId:
+		versionSetID, err := uuid.FromString(query.VersionSetId)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
+		}
+		proxies, err = sb.db.GetProxyByVersionSetID(ctx, versionSetID)
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
+		}
+
+	default:
+		var err error
+		proxies, err = sb.db.GetAllProxies(ctx)
 		if err != nil {
 			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
 		}

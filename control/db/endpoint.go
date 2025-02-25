@@ -61,14 +61,17 @@ func (s *StateManager) ListEndpointConfigs(ctx context.Context, versionSetID *uu
 
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 
+		var err error
 		var query string
+		var rows pgx.Rows
 		if versionSetID != nil {
 			query = `SELECT id, name, mutual_auth, no_encryption, asl_key_exchange_method, cipher, version_set_id::text, created_at, updated_at, created_by FROM endpoint_configs WHERE version_set_id = $1`
+			rows, err = tx.Query(ctx, query, versionSetID)
 		} else {
+			log.Info().Msg("listing all endpoint configs")
 			query = `SELECT id, name, mutual_auth, no_encryption, asl_key_exchange_method, cipher, version_set_id::text, created_at, updated_at, created_by FROM endpoint_configs`
+			rows, err = tx.Query(ctx, query)
 		}
-
-		rows, err := tx.Query(ctx, query)
 		if err != nil {
 			return err
 		}
@@ -104,7 +107,6 @@ func (s *StateManager) ListEndpointConfigs(ctx context.Context, versionSetID *uu
 }
 
 func (s *StateManager) GetEndpointConfigByName(ctx context.Context, name string, versionSetID *uuid.UUID) (*types.EndpointConfig, error) {
-
 	var config types.EndpointConfig
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 

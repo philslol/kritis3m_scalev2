@@ -31,23 +31,26 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 		return nil, status.Error(codes.Internal, "failed to list nodes")
 	}
 
-	response := &v1.ListNodesResponse{
+	response := v1.ListNodesResponse{
 		Nodes: make([]*v1.NodeResponse, len(nodes)),
 	}
 
 	for i, node := range nodes {
-
-		response.Nodes[i] = &v1.NodeResponse{
-
+		nodeResponse := &v1.NodeResponse{
 			Node: &v1.Node{
 				Id:           int32(node.ID),
 				SerialNumber: node.SerialNumber,
 				NetworkIndex: int32(node.NetworkIndex),
 				Locality:     node.Locality,
 				VersionSetId: node.VersionSetID.String(),
-				LastSeen:     timestamppb.New(*node.LastSeen),
 			},
 		}
+
+		if node.LastSeen != nil {
+			nodeResponse.Node.LastSeen = timestamppb.New(*node.LastSeen)
+		}
+
+		response.Nodes[i] = nodeResponse
 
 		if req.GetInclude() {
 			// Get hardware configs
@@ -55,9 +58,9 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 			if err != nil {
 				log.Warn().Err(err).Msg("failed to get hardware configs")
 			} else {
-				response.Nodes[i].HwConfigs = make([]*v1.HardwareConfig, len(hwConfigs))
+				nodeResponse.HwConfigs = make([]*v1.HardwareConfig, len(hwConfigs))
 				for i, config := range hwConfigs {
-					response.Nodes[i].HwConfigs[i] = &v1.HardwareConfig{
+					nodeResponse.HwConfigs[i] = &v1.HardwareConfig{
 						Id:               int32(config.ID),
 						NodeSerialNumber: config.NodeSerial,
 						Device:           config.Device,
@@ -71,9 +74,9 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 			if err != nil {
 				log.Warn().Err(err).Msg("failed to get proxies")
 			} else {
-				response.Nodes[i].Proxy = make([]*v1.Proxy, len(proxies))
+				nodeResponse.Proxy = make([]*v1.Proxy, len(proxies))
 				for i, proxy := range proxies {
-					response.Nodes[i].Proxy[i] = &v1.Proxy{
+					nodeResponse.Proxy[i] = &v1.Proxy{
 						Id:                 int32(proxy.ID),
 						Name:               proxy.Name,
 						NodeSerialNumber:   proxy.NodeSerial,
@@ -87,10 +90,9 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 				}
 			}
 		}
-
 	}
 
-	return response, nil
+	return &response, nil
 }
 
 func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeRequest) (*v1.NodeResponse, error) {
@@ -153,8 +155,11 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 			NetworkIndex: int32(node.NetworkIndex),
 			Locality:     node.Locality,
 			VersionSetId: node.VersionSetID.String(),
-			LastSeen:     timestamppb.New(*node.LastSeen),
 		},
+	}
+
+	if node.LastSeen != nil {
+		response.Node.LastSeen = timestamppb.New(*node.LastSeen)
 	}
 
 	if req.GetInclude() {

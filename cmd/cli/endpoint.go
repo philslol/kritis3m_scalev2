@@ -260,10 +260,7 @@ var listEndpointsCmd = &cobra.Command{
 
 		if versionSetID != "" {
 			request.VersionSetId = &versionSetID
-		} else {
-			log.Fatal().Msg("Must specify version-number")
 		}
-
 		rsp, err := client.ListEndpointConfigs(ctx, request)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to list endpoints")

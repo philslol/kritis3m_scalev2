@@ -264,6 +264,7 @@ var listGroupsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		versionSetID, _ := cmd.Flags().GetString("version-number")
 		includeEndpoints, _ := cmd.Flags().GetBool("include")
+		var request *v1.ListGroupsRequest
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -272,9 +273,15 @@ var listGroupsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListGroupsRequest{
-			VersionSetId:     &versionSetID,
-			IncludeEndpoints: includeEndpoints,
+		if versionSetID != "" {
+			request = &v1.ListGroupsRequest{
+				VersionSetId:     &versionSetID,
+				IncludeEndpoints: includeEndpoints,
+			}
+		} else {
+			request = &v1.ListGroupsRequest{
+				IncludeEndpoints: includeEndpoints,
+			}
 		}
 
 		rsp, err := client.ListGroups(ctx, request)

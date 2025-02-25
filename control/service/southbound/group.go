@@ -55,21 +55,27 @@ func (s *SouthboundService) GetGroup(ctx context.Context, req *v1.GetGroupReques
 
 func (s *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRequest) (*v1.ListGroupsResponse, error) {
 	var response *v1.ListGroupsResponse
+	var versionSetID uuid.UUID
+	var groups []*types.Group
+	var err error
 	if req.VersionSetId != nil {
-		versionID := uuid.FromStringOrNil(req.GetVersionSetId())
+		versionSetID = uuid.FromStringOrNil(req.GetVersionSetId())
+		groups, err = s.db.GetListGroup(ctx, &versionSetID)
+	} else {
+		groups, err = s.db.GetListGroup(ctx, nil)
+	}
 
-		groups, err := s.db.GetListGroup(ctx, &versionID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list groups: %v", err)
-		}
+	if err != nil {
+		log.Error().Err(err).Msg("failed to list groups")
+		return nil, status.Errorf(codes.Internal, "failed to list groups: %v", err)
+	}
 
-		response = &v1.ListGroupsResponse{
-			Groups: make([]*v1.GroupResponse, len(groups)),
-		}
+	response = &v1.ListGroupsResponse{
+		Groups: make([]*v1.GroupResponse, len(groups)),
+	}
 
-		for i, group := range groups {
-			response.Groups[i] = convertGroupToResponse(group)
-		}
+	for i, group := range groups {
+		response.Groups[i] = convertGroupToResponse(group)
 	}
 
 	return response, nil

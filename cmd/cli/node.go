@@ -40,7 +40,7 @@ func init() {
 	readNodeCmd.Flags().StringP("serial-number", "s", "", "Serial number of the node")
 	readNodeCmd.MarkFlagRequired("serial-number")
 
-	readNodeCmd.Flags().BoolP("include", "i", false, "Include related configs")
+	readNodeCmd.Flags().Bool("include", false, "Include related configs")
 	readNodeCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	nodeCli.AddCommand(readNodeCmd)
 
@@ -62,7 +62,7 @@ func init() {
 
 	// List command flags
 	listNodesCmd.Flags().StringP("version-number", "v", "", "Version set ID")
-	listNodesCmd.Flags().BoolP("include", "i", false, "Include related configs")
+	listNodesCmd.Flags().Bool("include", false, "Include related configs")
 	listNodesCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	nodeCli.AddCommand(listNodesCmd)
 }

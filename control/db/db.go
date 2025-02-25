@@ -158,11 +158,11 @@ CREATE TABLE IF NOT EXISTS version_transitions (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_version_sets_state ON version_sets(state);
 CREATE INDEX IF NOT EXISTS idx_version_transitions_status ON version_transitions(status);
 CREATE INDEX IF NOT EXISTS idx_nodes_version ON nodes(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_proxies_version ON proxies(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_hwconfig_version ON hardware_configs(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_groups_version ON groups(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_endpoint_version ON endpoint_configs(version_set_id);
+
 `

@@ -174,10 +174,11 @@ var readProxyCmd = &cobra.Command{
 					Serial:       serial,
 				},
 			}
-		} else {
-			return fmt.Errorf("must specify either id, or version-number and name, or version-number and serial")
+		} else if versionSetID != "" {
+			request.Query = &v1.GetProxyRequest_VersionSetId{
+				VersionSetId: versionSetID,
+			}
 		}
-
 		rsp, err := client.GetProxy(ctx, request)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to get proxy")
@@ -310,7 +311,6 @@ var listProxiesCmd = &cobra.Command{
 				},
 			}
 		}
-
 		rsp, err := client.GetProxy(ctx, request)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to list proxies")

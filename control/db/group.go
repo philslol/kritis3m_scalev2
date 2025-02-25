@@ -19,7 +19,7 @@ func (s *StateManager) CreateGroup(ctx context.Context, group *types.Group) erro
             legacy_config_name,
             version_set_id,
             created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ) VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, created_at, updated_at`
 
 		return s.pool.QueryRow(ctx, query,

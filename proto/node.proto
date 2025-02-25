@@ -355,6 +355,7 @@ message GetProxyRequest {
     int32 id = 1;
     ProxyNameQuery name_query = 2;
     ProxySerialQuery serial_query = 3;
+    string version_set_id = 4;
   }
 }
 
