@@ -2,6 +2,7 @@ package southbound
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -26,8 +27,8 @@ func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProx
 	log.Debug().Msgf("proxyTypeStr: %s", proxyTypeStr)
 
 	proxy := &types.Proxy{
-		NodeID:             int(req.NodeId),
-		GroupID:            int(req.GroupId),
+		NodeSerial:         req.NodeSerialNumber,
+		GroupName:          req.GroupName,
 		State:              req.State,
 		ProxyType:          types.ProxyType(proxyTypeStr),
 		ServerEndpointAddr: req.ServerEndpointAddr,
@@ -42,60 +43,51 @@ func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProx
 	}
 
 	return &v1.ProxyResponse{
-		Proxy: &v1.Proxy{
-			Id:                 int32(createdProxy.ID),
-			NodeId:             int32(createdProxy.NodeID),
-			GroupId:            int32(createdProxy.GroupID),
-			State:              createdProxy.State,
-			ProxyType:          req.ProxyType,
-			ServerEndpointAddr: createdProxy.ServerEndpointAddr,
-			ClientEndpointAddr: createdProxy.ClientEndpointAddr,
-			VersionSetId:       createdProxy.VersionSetID.String(),
-			CreatedBy:          createdProxy.CreatedBy,
+		Proxy: []*v1.Proxy{
+			{
+				Id:                 int32(createdProxy.ID),
+				NodeSerialNumber:   createdProxy.NodeSerial,
+				GroupName:          createdProxy.GroupName,
+				State:              createdProxy.State,
+				ProxyType:          req.ProxyType,
+				ServerEndpointAddr: createdProxy.ServerEndpointAddr,
+				ClientEndpointAddr: createdProxy.ClientEndpointAddr,
+				VersionSetId:       createdProxy.VersionSetID.String(),
+				CreatedBy:          createdProxy.CreatedBy,
+			},
 		},
 	}, nil
 }
 
 func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyRequest) (*v1.ProxyResponse, error) {
-	proxy, err := sb.db.GetProxyByID(ctx, int(req.Id))
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
+	var proxies []*types.Proxy
+	switch query := req.GetQuery().(type) {
+	case *v1.GetProxyRequest_Id:
+		proxy, err := sb.db.GetProxyByID(ctx, int(req.GetId()))
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
+		}
+		proxies = append(proxies, proxy)
+	case *v1.GetProxyRequest_NameQuery:
+		versionSetID, err := uuid.FromString(query.NameQuery.GetVersionSetId())
+		proxy_name := query.NameQuery.GetName()
+		proxy, err := sb.db.GetProxyByName(ctx, proxy_name, versionSetID)
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
+		}
+		proxies = append(proxies, proxy)
+	case *v1.GetProxyRequest_SerialQuery:
+		versionSetID, err := uuid.FromString(query.SerialQuery.GetVersionSetId())
+		serialNumber := query.SerialQuery.GetSerial()
+		proxies, err = sb.db.GetProxyBySerialNumber(ctx, serialNumber, versionSetID)
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
+		}
 	}
+	//convert proxies and return
+	proxyResponses := make([]*v1.Proxy, len(proxies))
+	for i, proxy := range proxies {
 
-	// Convert stored string back to ProxyType enum
-	proxyType := v1.ProxyType_FORWARD // Default to FORWARD
-	switch strings.ToUpper(string(proxy.ProxyType)) {
-	case "FORWARD":
-		proxyType = v1.ProxyType_FORWARD
-	case "REVERSE":
-		proxyType = v1.ProxyType_REVERSE
-	case "TLSTLS":
-		proxyType = v1.ProxyType_TLSTLS
-	}
-
-	return &v1.ProxyResponse{
-		Proxy: &v1.Proxy{
-			Id:                 int32(proxy.ID),
-			NodeId:             int32(proxy.NodeID),
-			GroupId:            int32(proxy.GroupID),
-			State:              proxy.State,
-			ProxyType:          proxyType,
-			ServerEndpointAddr: proxy.ServerEndpointAddr,
-			ClientEndpointAddr: proxy.ClientEndpointAddr,
-			VersionSetId:       proxy.VersionSetID.String(),
-			CreatedBy:          proxy.CreatedBy,
-		},
-	}, nil
-}
-
-func (sb *SouthboundService) ListProxies(ctx context.Context, req *v1.ListProxiesRequest) (*v1.ListProxiesResponse, error) {
-	proxies, err := sb.db.ListProxies(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list proxies: %v", err)
-	}
-
-	var proxyResponses []*v1.Proxy
-	for _, proxy := range proxies {
 		// Convert stored string back to ProxyType enum
 		proxyType := v1.ProxyType_FORWARD // Default to FORWARD
 		switch strings.ToUpper(string(proxy.ProxyType)) {
@@ -107,26 +99,26 @@ func (sb *SouthboundService) ListProxies(ctx context.Context, req *v1.ListProxie
 			proxyType = v1.ProxyType_TLSTLS
 		}
 
-		proxyResponses = append(proxyResponses, &v1.Proxy{
+		proxyResponses[i] = &v1.Proxy{
 			Id:                 int32(proxy.ID),
-			NodeId:             int32(proxy.NodeID),
-			GroupId:            int32(proxy.GroupID),
+			NodeSerialNumber:   proxy.NodeSerial,
+			GroupName:          proxy.GroupName,
 			State:              proxy.State,
 			ProxyType:          proxyType,
 			ServerEndpointAddr: proxy.ServerEndpointAddr,
 			ClientEndpointAddr: proxy.ClientEndpointAddr,
 			VersionSetId:       proxy.VersionSetID.String(),
-			CreatedBy:          proxy.CreatedBy,
-		})
+		}
 	}
 
-	return &v1.ListProxiesResponse{
-		Proxies: proxyResponses,
+	return &v1.ProxyResponse{
+		Proxy: proxyResponses,
 	}, nil
 }
 
 func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *v1.UpdateProxyRequest) (*empty.Empty, error) {
 	updates := make(map[string]interface{})
+	var err error
 
 	if req.State != nil {
 		updates["state"] = *req.State
@@ -144,13 +136,22 @@ func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *v1.UpdateProx
 	if req.GroupId != nil {
 		updates["group_id"] = *req.GroupId
 	}
-	if req.VersionSetId != nil {
-		updates["version_set_id"] = *req.VersionSetId
-	}
 
-	err := sb.db.Update(ctx, "proxies", updates, "id", int(req.Id))
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to update proxy: %v", err)
+	switch query := req.GetQuery().(type) {
+	case *v1.UpdateProxyRequest_Id:
+		where_string := fmt.Sprintf("id = %d", query.Id)
+		err = sb.db.UpdateWhere(ctx, "proxies", updates, where_string)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to update proxy: %v", err)
+		}
+	case *v1.UpdateProxyRequest_NameQuery:
+		versionSetID, err := uuid.FromString(query.NameQuery.GetVersionSetId())
+		proxy_name := query.NameQuery.GetName()
+		where_string := fmt.Sprintf("name = %s AND version_set_id = %s", proxy_name, versionSetID.String())
+		err = sb.db.UpdateWhere(ctx, "proxies", updates, where_string)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to update proxy: %v", err)
+		}
 	}
 
 	return &empty.Empty{}, nil

@@ -40,52 +40,50 @@ var ProxyTypeMap = map[ProxyType]int32{
 }
 
 type Node struct {
-	ID           int          `json:"id"`
-	SerialNumber string       `json:"serial_number"`
-	NetworkIndex int          `json:"network_index"`
-	Locality     string       `json:"locality"`
-	LastSeen     *time.Time   `json:"last_seen,omitempty"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
-	CreatedBy    string       `json:"created_by"`
-	VersionSetID *uuid.UUID   `json:"version_set_id,omitempty"`
-	State        VersionState `json:"state"`
+	ID           int        `json:"id"`
+	SerialNumber string     `json:"serial_number"`
+	NetworkIndex int        `json:"network_index"`
+	Locality     string     `json:"locality"`
+	LastSeen     *time.Time `json:"last_seen,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	CreatedBy    string     `json:"created_by"`
+	VersionSetID uuid.UUID  `json:"version_set_id,omitempty"`
 }
 
 type Group struct {
-	ID               int        `json:"id"`
-	Name             string     `json:"name"`
-	LogLevel         int        `json:"log_level"`
-	EndpointConfigID *int       `json:"endpoint_config_id,omitempty"`
-	LegacyConfigID   *int       `json:"legacy_config_id,omitempty"`
-	VersionSetID     *uuid.UUID `json:"version_set_id,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	CreatedBy        string     `json:"created_by"`
+	ID                 int       `json:"id"`
+	Name               string    `json:"name"`
+	LogLevel           int       `json:"log_level"`
+	EndpointConfigName string    `json:"endpoint_config_name,omitempty"`
+	LegacyConfigName   string    `json:"legacy_config_name,omitempty"`
+	VersionSetID       uuid.UUID `json:"version_set_id,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	CreatedBy          string    `json:"created_by"`
 }
 
 type HardwareConfig struct {
-	ID           int          `json:"id"`
-	NodeID       *int         `json:"node_id,omitempty"`
-	Device       string       `json:"device"`
-	IPCIDR       net.IPNet    `json:"ip_cidr"`
-	VersionSetID *uuid.UUID   `json:"version_set_id,omitempty"`
-	State        VersionState `json:"state"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
-	CreatedBy    string       `json:"created_by"`
+	ID           int       `json:"id"`
+	NodeSerial   string    `json:"node_serial"`
+	Device       string    `json:"device"`
+	IPCIDR       net.IPNet `json:"ip_cidr"`
+	VersionSetID uuid.UUID `json:"version_set_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	CreatedBy    string    `json:"created_by"`
 }
 
 type Proxy struct {
 	ID                 int       `json:"id"`
-	NodeID             int       `json:"node_id,omitempty"`
-	GroupID            int       `json:"group_id,omitempty"`
+	Name               string    `json:"name"`
+	NodeSerial         string    `json:"node_serial"`
+	GroupName          string    `json:"group_name"`
 	State              bool      `json:"state"`
 	ProxyType          ProxyType `json:"proxy_type"`
 	ServerEndpointAddr string    `json:"server_endpoint_addr"`
 	ClientEndpointAddr string    `json:"client_endpoint_addr"`
 	VersionSetID       uuid.UUID `json:"version_set_id,omitempty"`
-	VersionState       string    `json:"version_state"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 	CreatedBy          string    `json:"created_by"`
@@ -105,8 +103,8 @@ type VersionSet struct {
 
 type VersionTransition struct {
 	ID            string     `json:"id"`
-	FromVersionID *string    `json:"from_version_id"`
-	ToVersionID   string     `json:"to_version_id"`
+	FromVersionID uuid.UUID  `json:"from_version_id"`
+	ToVersionID   uuid.UUID  `json:"to_version_id"`
 	Status        string     `json:"status"`
 	StartedAt     time.Time  `json:"started_at"`
 	CompletedAt   *time.Time `json:"completed_at"`
@@ -121,8 +119,7 @@ type EndpointConfig struct {
 	NoEncryption         bool      `json:"no_encryption"`
 	ASLKeyExchangeMethod string    `json:"asl_key_exchange_method"`
 	Cipher               *string   `json:"cipher"`
-	State                string    `json:"state"`
-	VersionSetID         *string   `json:"version_set_id"`
+	VersionSetID         uuid.UUID `json:"version_set_id"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 	CreatedBy            string    `json:"created_by"`

@@ -26,22 +26,33 @@ func init() {
 	createNodeCmd.Flags().StringP("version-number", "v", "", "Reference to the version")
 	createNodeCmd.MarkFlagRequired("version-number")
 
+	createNodeCmd.Flags().StringP("created-by", "u", "", "User creating the node")
+	createNodeCmd.MarkFlagRequired("created-by")
+
 	// Add all commands to node CLI
 	nodeCli.AddCommand(createNodeCmd)
 
 	// Read command flags
-	readNodeCmd.Flags().Int32P("id", "i", 0, "ID of the node")
-	readNodeCmd.Flags().StringP("version-number", "v", "", "Version set ID to list nodes for")
+	readNodeCmd.Flags().Int32P("id", "i", 0, "ID of node")
+
+	readNodeCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	readNodeCmd.MarkFlagRequired("version-number")
+	readNodeCmd.Flags().StringP("serial-number", "s", "", "Serial number of the node")
+	readNodeCmd.MarkFlagRequired("serial-number")
+
+	readNodeCmd.Flags().BoolP("include", "i", false, "Include related configs")
 	readNodeCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	nodeCli.AddCommand(readNodeCmd)
 
 	// Update command flags
 	updateNodeCmd.Flags().Int32P("id", "i", 0, "ID of the node")
-	updateNodeCmd.MarkFlagRequired("id")
+
+	updateNodeCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	updateNodeCmd.MarkFlagRequired("version-number")
 	updateNodeCmd.Flags().StringP("serial-number", "s", "", "Serial number of the node")
+	updateNodeCmd.MarkFlagRequired("serial-number")
 	updateNodeCmd.Flags().Int32P("network-index", "n", 0, "Network index of the node")
 	updateNodeCmd.Flags().StringP("locality", "l", "", "Locality of the node")
-	updateNodeCmd.Flags().StringP("version-number", "v", "", "Reference to the version")
 	nodeCli.AddCommand(updateNodeCmd)
 
 	// Delete command flags
@@ -50,6 +61,8 @@ func init() {
 	nodeCli.AddCommand(deleteNodeCmd)
 
 	// List command flags
+	listNodesCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	listNodesCmd.Flags().BoolP("include", "i", false, "Include related configs")
 	listNodesCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	nodeCli.AddCommand(listNodesCmd)
 }
@@ -69,6 +82,7 @@ var createNodeCmd = &cobra.Command{
 		networkIndex, _ := cmd.Flags().GetInt32("network-index")
 		locality, _ := cmd.Flags().GetString("locality")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
+		createdBy, _ := cmd.Flags().GetString("created-by")
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to get client")
@@ -82,6 +96,7 @@ var createNodeCmd = &cobra.Command{
 			NetworkIndex: networkIndex,
 			Locality:     &locality,
 			VersionSetId: versionSetID,
+			User:         createdBy,
 		}
 
 		rsp, err := client.CreateNode(ctx, request)
@@ -102,10 +117,13 @@ var readNodeCmd = &cobra.Command{
 	Long:  "Read and display details of a specific node",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetInt32("id")
-		versionSetId, _ := cmd.Flags().GetString("version-number")
 
-		if id == 0 && versionSetId == "" {
-			return fmt.Errorf("either id or version-number must be provided")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+		serialNumber, _ := cmd.Flags().GetString("serial-number")
+		include, _ := cmd.Flags().GetBool("include")
+
+		if versionSetID == "" && serialNumber == "" && id == 0 {
+			return fmt.Errorf("either version-number or serial-number or id must be provided")
 		}
 
 		ctx, client, conn, cancel, err := getClient()
@@ -116,42 +134,38 @@ var readNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
+		var request *v1.GetNodeRequest
+
 		if id != 0 {
-			request := &v1.GetNodeRequest{
-				Id:           id,
-				VersionSetId: versionSetId,
+			request = &v1.GetNodeRequest{
+				Query: &v1.GetNodeRequest_Id{
+					Id: id,
+				},
+				Include: &include,
 			}
-
-			rsp, err := client.GetNode(ctx, request)
-			if err != nil {
-				log.Fatal().Err(err).Msg("Failed to get node")
+		} else {
+			request = &v1.GetNodeRequest{
+				Query: &v1.GetNodeRequest_NodeQuery{
+					NodeQuery: &v1.NodeNameQuery{
+						SerialNumber: serialNumber,
+						VersionSetId: versionSetID,
+					},
+				},
+				Include: &include,
 			}
-
-			if HasMachineOutputFlag() {
-				SuccessOutput(rsp, "", outputFormat)
-				return nil
-			}
-
-			PrintNodeResponseAsTable([]*v1.NodeResponse{rsp})
-			return nil
 		}
 
-		// If version-number is provided, list nodes for that version set
-		request := &v1.ListNodesRequest{
-			VersionSetId: &versionSetId,
-		}
-
-		rsp, err := client.ListNodes(ctx, request)
+		rsp, err := client.GetNode(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list nodes")
+			log.Fatal().Err(err).Msg("Failed to get node")
 		}
 
 		if HasMachineOutputFlag() {
-			SuccessOutput(rsp.GetNodes(), "", outputFormat)
+			SuccessOutput(rsp, "", outputFormat)
 			return nil
 		}
 
-		PrintNodeResponseAsTable(rsp.GetNodes())
+		PrintNodeResponseAsTable([]*v1.NodeResponse{rsp})
 		return nil
 	},
 }
@@ -161,11 +175,11 @@ var updateNodeCmd = &cobra.Command{
 	Short: "Update node details",
 	Long:  "Update the details of an existing node",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _ := cmd.Flags().GetInt32("id")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 		serialNumber, _ := cmd.Flags().GetString("serial-number")
 		networkIndex, _ := cmd.Flags().GetInt32("network-index")
 		locality, _ := cmd.Flags().GetString("locality")
-		versionSetID, _ := cmd.Flags().GetString("version-number")
+		id, _ := cmd.Flags().GetInt32("id")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -175,13 +189,27 @@ var updateNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.UpdateNodeRequest{
-			Id:           id,
-			SerialNumber: &serialNumber,
-			NetworkIndex: &networkIndex,
-			Locality:     &locality,
-			VersionSetId: &versionSetID,
+		var request *v1.UpdateNodeRequest
+
+		if id != 0 {
+			request = &v1.UpdateNodeRequest{
+				Query: &v1.UpdateNodeRequest_Id{
+					Id: id,
+				},
+			}
+		} else {
+			request = &v1.UpdateNodeRequest{
+				Query: &v1.UpdateNodeRequest_NodeQuery{
+					NodeQuery: &v1.NodeNameQuery{
+						VersionSetId: versionSetID,
+						SerialNumber: serialNumber,
+					},
+				},
+			}
 		}
+
+		request.NetworkIndex = &networkIndex
+		request.Locality = &locality
 
 		_, err = client.UpdateNode(ctx, request)
 		if err != nil {
@@ -198,7 +226,8 @@ var deleteNodeCmd = &cobra.Command{
 	Short: "Delete a node",
 	Long:  "Delete an existing node from the system",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _ := cmd.Flags().GetInt32("id")
+		serialNumber, _ := cmd.Flags().GetString("serial-number")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -209,7 +238,8 @@ var deleteNodeCmd = &cobra.Command{
 		defer conn.Close()
 
 		request := &v1.DeleteNodeRequest{
-			Id: id,
+			SerialNumber: serialNumber,
+			VersionSetId: versionSetID,
 		}
 
 		_, err = client.DeleteNode(ctx, request)
@@ -227,6 +257,9 @@ var listNodesCmd = &cobra.Command{
 	Short: "List all nodes",
 	Long:  "List all nodes in the system",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+		include, _ := cmd.Flags().GetBool("include")
+
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to get client")
@@ -235,7 +268,10 @@ var listNodesCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListNodesRequest{}
+		request := &v1.ListNodesRequest{
+			VersionSetId: &versionSetID,
+			Include:      &include,
+		}
 
 		rsp, err := client.ListNodes(ctx, request)
 		if err != nil {

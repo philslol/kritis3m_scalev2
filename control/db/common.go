@@ -9,6 +9,28 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func (s *StateManager) UpdateWhere(ctx context.Context, table string, updates map[string]interface{}, where string) error {
+	fields := []string{}
+	values := []interface{}{}
+	paramCount := 1
+
+	for field, value := range updates {
+		fields = append(fields, field+" = $"+strconv.Itoa(paramCount))
+		values = append(values, value)
+		paramCount++
+	}
+
+	query := "UPDATE " + table + " SET " + strings.Join(fields, ", ") + " WHERE " + where
+
+	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, query, values...)
+		if err != nil {
+			return fmt.Errorf("failed to execute update: %w", err)
+		}
+		return nil
+	})
+}
+
 func (s *StateManager) Update(ctx context.Context, table string, updates map[string]interface{}, where_key string, where_value interface{}) error {
 	fields := []string{}
 	values := []interface{}{}

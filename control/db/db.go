@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS change_log (
 
 -- Modified Nodes Table
 CREATE TABLE IF NOT EXISTS nodes (
-    id SERIAL,
+    id SERIAL UNIQUE,
     serial_number TEXT NOT NULL CHECK (char_length(serial_number) <= 50),
     network_index INTEGER NOT NULL,
     locality TEXT,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 -- Modified Endpoint Configurations
 CREATE TABLE IF NOT EXISTS endpoint_configs (
-    id SERIAL,
+    id SERIAL UNIQUE,
     name TEXT NOT NULL,
     mutual_auth BOOLEAN NOT NULL DEFAULT false,
     no_encryption BOOLEAN NOT NULL DEFAULT false,
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS endpoint_configs (
 
 -- Modified Groups Table
 CREATE TABLE IF NOT EXISTS groups (
-    id SERIAL,
+    id SERIAL UNIQUE,
     name TEXT NOT NULL,
     log_level INTEGER NOT NULL DEFAULT 0,
     endpoint_config_name TEXT,
@@ -104,15 +104,15 @@ CREATE TABLE IF NOT EXISTS groups (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL,
     PRIMARY KEY (name, version_set_id),
-    FOREIGN KEY (endpoint_config_name, version_set_id) 
+    FOREIGN KEY (endpoint_config_name, version_set_id)
         REFERENCES endpoint_configs(name, version_set_id),
-    FOREIGN KEY (legacy_config_name, version_set_id) 
+    FOREIGN KEY (legacy_config_name, version_set_id)
         REFERENCES endpoint_configs(name, version_set_id)
 );
 
 -- Hardware Configurations
 CREATE TABLE IF NOT EXISTS hardware_configs (
-    id SERIAL,
+    id SERIAL PRIMARY KEY ,
     node_serial TEXT NOT NULL,
     device TEXT NOT NULL,
     ip_cidr INET NOT NULL,
@@ -120,13 +120,14 @@ CREATE TABLE IF NOT EXISTS hardware_configs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL,
-    FOREIGN KEY (node_serial, version_set_id) 
+    FOREIGN KEY (node_serial, version_set_id)
         REFERENCES nodes(serial_number, version_set_id)
 );
 
 -- Modified Proxies Table
 CREATE TABLE IF NOT EXISTS proxies (
-    id SERIAL,
+    id SERIAL UNIQUE,
+    name TEXT NOT NULL,
     node_serial TEXT NOT NULL,
     group_name TEXT NOT NULL,
     state BOOLEAN NOT NULL DEFAULT true,
@@ -137,9 +138,10 @@ CREATE TABLE IF NOT EXISTS proxies (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT NOT NULL,
-    FOREIGN KEY (node_serial, version_set_id) 
+    PRIMARY KEY (name, version_set_id),
+    FOREIGN KEY (node_serial, version_set_id)
         REFERENCES nodes(serial_number, version_set_id),
-    FOREIGN KEY (group_name, version_set_id) 
+    FOREIGN KEY (group_name, version_set_id)
         REFERENCES groups(name, version_set_id)
 );
 

@@ -25,13 +25,11 @@ func (sb *SouthboundService) CreateHardwareConfig(ctx context.Context, req *v1.C
 		return nil, fmt.Errorf("invalid IP CIDR: %w", err)
 	}
 
-	nodeID := int(req.NodeId)
 	config := &types.HardwareConfig{
-		NodeID:       &nodeID,
+		NodeSerial:   req.NodeSerialNumber,
 		Device:       req.Device,
 		IPCIDR:       *ipNet,
-		VersionSetID: &versionSetID,
-		State:        types.VERSION_STATE_DRAFT,
+		VersionSetID: versionSetID,
 		CreatedBy:    "system", // You might want to get this from context or auth
 	}
 
@@ -41,66 +39,64 @@ func (sb *SouthboundService) CreateHardwareConfig(ctx context.Context, req *v1.C
 	}
 
 	return &v1.HardwareConfigResponse{
-		HardwareConfig: &v1.HardwareConfig{
-			Id:           int32(config.ID),
-			NodeId:       req.NodeId,
-			Device:       config.Device,
-			IpCidr:       config.IPCIDR.String(),
-			VersionSetId: config.VersionSetID.String(),
+		HardwareConfig: []*v1.HardwareConfig{
+			{
+				Id:               int32(config.ID),
+				NodeSerialNumber: config.NodeSerial,
+				Device:           config.Device,
+				IpCidr:           config.IPCIDR.String(),
+				VersionSetId:     config.VersionSetID.String(),
+			},
 		},
 	}, nil
 }
 
 func (sb *SouthboundService) GetHardwareConfig(ctx context.Context, req *v1.GetHardwareConfigRequest) (*v1.HardwareConfigResponse, error) {
-	config, err := sb.db.GetHwConfigPByID(ctx, int(req.Id))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hardware config: %w", err)
+	var configs []*types.HardwareConfig
+
+	response := &v1.HardwareConfigResponse{
+		HardwareConfig: []*v1.HardwareConfig{},
 	}
 
-	return &v1.HardwareConfigResponse{
-		HardwareConfig: &v1.HardwareConfig{
-			Id:           int32(config.ID),
-			NodeId:       int32(*config.NodeID),
-			Device:       config.Device,
-			IpCidr:       config.IPCIDR.String(),
-			VersionSetId: config.VersionSetID.String(),
-		},
-	}, nil
-}
+	switch req.Query.(type) {
+	case *v1.GetHardwareConfigRequest_Id:
+		id := int(req.GetId())
+		config, err := sb.db.GetHwConfigPByID(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hardware config: %w", err)
+		}
+		configs = append(configs, config)
+	case *v1.GetHardwareConfigRequest_HardwareConfigQuery:
+		versionSetID, err := uuid.FromString(req.GetHardwareConfigQuery().VersionSetId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hardware config: %w", err)
+		}
+		serialNumber := req.GetHardwareConfigQuery().NodeSerialNumber
 
-func (sb *SouthboundService) ListHardwareConfigs(ctx context.Context, req *v1.ListHardwareConfigsRequest) (*v1.ListHardwareConfigsResponse, error) {
-	var configs []*types.HardwareConfig
-	var err error
+		configs, err = sb.db.GetHwConfigBySerial(ctx, serialNumber, versionSetID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hardware config: %w", err)
+		}
 
-	if req.GetVersionSetId() != "" {
+	case *v1.GetHardwareConfigRequest_VersionSetId:
 		versionSetID, err := uuid.FromString(req.GetVersionSetId())
 		if err != nil {
-			return nil, fmt.Errorf("invalid version set ID: %w", err)
+			return nil, fmt.Errorf("failed to get hardware config: %w", err)
 		}
 		configs, err = sb.db.GetHwConfigByVersionSetID(ctx, versionSetID)
-	} else if req.GetNodeId() != 0 {
-		nodeID := int(req.GetNodeId())
-		configs, err = sb.db.GetHwConfigbyNodeID(ctx, nodeID)
-	} else {
-		// TODO: Implement GetAllHwConfigs in db package
-		return nil, fmt.Errorf("listing all hardware configs not implemented")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hardware config: %w", err)
+		}
 	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list hardware configs: %w", err)
-	}
-
-	response := &v1.ListHardwareConfigsResponse{
-		HardwareConfigs: make([]*v1.HardwareConfig, len(configs)),
-	}
+	response.HardwareConfig = make([]*v1.HardwareConfig, len(configs))
 
 	for i, config := range configs {
-		response.HardwareConfigs[i] = &v1.HardwareConfig{
-			Id:           int32(config.ID),
-			NodeId:       int32(*config.NodeID),
-			Device:       config.Device,
-			IpCidr:       config.IPCIDR.String(),
-			VersionSetId: config.VersionSetID.String(),
+		response.HardwareConfig[i] = &v1.HardwareConfig{
+			Id:               int32(config.ID),
+			NodeSerialNumber: config.NodeSerial,
+			Device:           config.Device,
+			IpCidr:           config.IPCIDR.String(),
+			VersionSetId:     config.VersionSetID.String(),
 		}
 	}
 

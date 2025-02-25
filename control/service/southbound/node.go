@@ -4,187 +4,254 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gofrs/uuid/v5"
-
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 )
 
 func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesRequest) (*v1.ListNodesResponse, error) {
-
-	var ListNodesResponse v1.ListNodesResponse
-	version_id_conv := uuid.FromStringOrNil(req.GetVersionSetId())
-	nodes, err := sb.db.ListNodes(ctx, &version_id_conv)
-	if err != nil {
-		log.Err(err).Msg("failed to list nodes")
+	var versionSetID *uuid.UUID
+	if req.GetVersionSetId() != "" {
+		id, err := uuid.FromString(req.GetVersionSetId())
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
+		}
+		versionSetID = &id
 	}
 
-	grpc_nodes := make([]*v1.NodeResponse, len(nodes))
+	nodes, err := sb.db.ListNodes(ctx, versionSetID)
+	if err != nil {
+		log.Err(err).Msg("failed to list nodes")
+		return nil, status.Error(codes.Internal, "failed to list nodes")
+	}
+
+	response := &v1.ListNodesResponse{
+		Nodes: make([]*v1.NodeResponse, len(nodes)),
+	}
 
 	for i, node := range nodes {
-		version_id := node.VersionSetID.String()
-		grpc_nodes[i] = &v1.NodeResponse{
+
+		response.Nodes[i] = &v1.NodeResponse{
+
 			Node: &v1.Node{
 				Id:           int32(node.ID),
 				SerialNumber: node.SerialNumber,
-				Locality:     node.Locality,
 				NetworkIndex: int32(node.NetworkIndex),
-				VersionSetId: version_id,
+				Locality:     node.Locality,
+				VersionSetId: node.VersionSetID.String(),
 				LastSeen:     timestamppb.New(*node.LastSeen),
 			},
 		}
+
+		if req.GetInclude() {
+			// Get hardware configs
+			hwConfigs, err := sb.db.GetHwConfigbyNodeID(ctx, int(node.ID))
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to get hardware configs")
+			} else {
+				response.Nodes[i].HwConfigs = make([]*v1.HardwareConfig, len(hwConfigs))
+				for i, config := range hwConfigs {
+					response.Nodes[i].HwConfigs[i] = &v1.HardwareConfig{
+						Id:               int32(config.ID),
+						NodeSerialNumber: config.NodeSerial,
+						Device:           config.Device,
+						IpCidr:           config.IPCIDR.String(),
+						VersionSetId:     config.VersionSetID.String(),
+					}
+				}
+			}
+
+			proxies, err := sb.db.GetProxyBySerialNumber(ctx, node.SerialNumber, node.VersionSetID)
+			if err != nil {
+				log.Warn().Err(err).Msg("failed to get proxies")
+			} else {
+				response.Nodes[i].Proxy = make([]*v1.Proxy, len(proxies))
+				for i, proxy := range proxies {
+					response.Nodes[i].Proxy[i] = &v1.Proxy{
+						Id:                 int32(proxy.ID),
+						Name:               proxy.Name,
+						NodeSerialNumber:   proxy.NodeSerial,
+						GroupName:          proxy.GroupName,
+						State:              proxy.State,
+						ProxyType:          v1.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
+						ServerEndpointAddr: proxy.ServerEndpointAddr,
+						ClientEndpointAddr: proxy.ClientEndpointAddr,
+						VersionSetId:       proxy.VersionSetID.String(),
+					}
+				}
+			}
+		}
+
 	}
 
-	ListNodesResponse.Nodes = grpc_nodes
-
-	return &ListNodesResponse, nil
-
+	return response, nil
 }
 
 func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeRequest) (*v1.NodeResponse, error) {
-	//create locality out of req in the database
-	var node types.Node
-	node.SerialNumber = req.GetSerialNumber()
-	node.NetworkIndex = int(req.GetNetworkIndex())
-	node.Locality = req.GetLocality()
-	//convert versionSetid string to uuid
-	uuid_version, err := uuid.FromString(req.GetVersionSetId())
+	versionSetID, err := uuid.FromString(req.GetVersionSetId())
 	if err != nil {
-		log.Err(err).Msg("failed to convert versionSetId to uuid")
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
 	}
 
-	node.VersionSetID = &uuid_version
-	if err != nil {
-		return nil, fmt.Errorf("invalid UUID: %w", err)
+	node := &types.Node{
+		SerialNumber: req.GetSerialNumber(),
+		NetworkIndex: int(req.GetNetworkIndex()),
+		Locality:     req.GetLocality(),
+		VersionSetID: versionSetID,
+		CreatedBy:    req.GetUser(),
 	}
 
-	new_node, err := sb.db.CreateNode(ctx, &node)
+	createdNode, err := sb.db.CreateNode(ctx, node)
 	if err != nil {
 		log.Err(err).Msg("failed to create node")
-		return nil, err
-	}
-
-	nodeResponse := &v1.Node{
-		Id:           int32(new_node.ID),
-		SerialNumber: new_node.SerialNumber,
-		NetworkIndex: int32(new_node.NetworkIndex),
-		Locality:     new_node.Locality,
-		VersionSetId: new_node.VersionSetID.String(),
+		return nil, status.Error(codes.Internal, "failed to create node")
 	}
 
 	return &v1.NodeResponse{
-		Node: nodeResponse,
+		Node: &v1.Node{
+			Id:           int32(createdNode.ID),
+			SerialNumber: createdNode.SerialNumber,
+			NetworkIndex: int32(createdNode.NetworkIndex),
+			Locality:     createdNode.Locality,
+			VersionSetId: createdNode.VersionSetID.String(),
+		},
 	}, nil
 }
+
 func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest) (*v1.NodeResponse, error) {
-	//get node from database
-	node, err := sb.db.GetNode(ctx, int(req.GetId()))
+	var node *types.Node
+	var err error
+
+	switch query := req.GetQuery().(type) {
+	case *v1.GetNodeRequest_Id:
+		node, err = sb.db.GetNodebyID(ctx, int(query.Id))
+	case *v1.GetNodeRequest_NodeQuery:
+		versionSetID, err := uuid.FromString(query.NodeQuery.GetVersionSetId())
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
+		}
+		node, err = sb.db.GetNodebySerial(ctx, query.NodeQuery.GetSerialNumber(), versionSetID)
+	default:
+		return nil, status.Error(codes.InvalidArgument, "invalid query type")
+	}
+
 	if err != nil {
 		log.Err(err).Msg("failed to get node")
-		return nil, err
+		return nil, status.Error(codes.Internal, "failed to get node")
 	}
 
-	nodeResponse := &v1.Node{
-		Id:           int32(node.ID),
-		SerialNumber: node.SerialNumber,
-		NetworkIndex: int32(node.NetworkIndex),
-		Locality:     node.Locality,
-		VersionSetId: node.VersionSetID.String(),
+	response := &v1.NodeResponse{
+		Node: &v1.Node{
+			Id:           int32(node.ID),
+			SerialNumber: node.SerialNumber,
+			NetworkIndex: int32(node.NetworkIndex),
+			Locality:     node.Locality,
+			VersionSetId: node.VersionSetID.String(),
+			LastSeen:     timestamppb.New(*node.LastSeen),
+		},
 	}
-	var node_rsp v1.NodeResponse
-	node_rsp.Node = nodeResponse
 
 	if req.GetInclude() {
-		//get hardware configs of the node
-		hw_configs, err := sb.db.GetHwConfigbyNodeID(ctx, int(node.ID))
+		// Get hardware configs
+		hwConfigs, err := sb.db.GetHwConfigbyNodeID(ctx, int(node.ID))
 		if err != nil {
-			log.Err(err).Msg("failed to get hardware configs, query will be executed anyway")
-			return nil, err
-		}
-		node_rsp.HwConfigs = make([]*v1.HardwareConfig, len(hw_configs))
-		for i, hw_config := range hw_configs {
-			node_rsp.HwConfigs[i] = &v1.HardwareConfig{
-				Id:           int32(hw_config.ID),
-				NodeId:       int32(*hw_config.NodeID),
-				Device:       hw_config.Device,
-				IpCidr:       hw_config.IPCIDR.String(),
-				VersionSetId: hw_config.VersionSetID.String(),
-			}
-		}
-		proxies, err := sb.db.GetProxiesByNodeID(ctx, int(node.ID))
-		if err != nil {
-			log.Err(err).Msg("failed to get proxies, query will be executed anyway")
-		}
-
-		node_rsp.Proxy = make([]*v1.Proxy, len(proxies))
-		//convert proxies to v1.Proxy
-		for i, proxy := range proxies {
-			node_rsp.Proxy[i] = &v1.Proxy{
-				Id:                 int32(proxy.ID),
-				NodeId:             int32(proxy.NodeID),
-				GroupId:            int32(proxy.GroupID),
-				State:              proxy.State,
-				ProxyType:          v1.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
-				ServerEndpointAddr: proxy.ServerEndpointAddr,
-				ClientEndpointAddr: proxy.ClientEndpointAddr,
-				VersionSetId:       proxy.VersionSetID.String(),
-				CreatedBy:          proxy.CreatedBy,
+			log.Warn().Err(err).Msg("failed to get hardware configs")
+		} else {
+			response.HwConfigs = make([]*v1.HardwareConfig, len(hwConfigs))
+			for i, config := range hwConfigs {
+				response.HwConfigs[i] = &v1.HardwareConfig{
+					Id:               int32(config.ID),
+					NodeSerialNumber: config.NodeSerial,
+					Device:           config.Device,
+					IpCidr:           config.IPCIDR.String(),
+					VersionSetId:     config.VersionSetID.String(),
+				}
 			}
 		}
 
-	} else {
-		node_rsp.Proxy = nil
-		node_rsp.HwConfigs = nil
+		proxies, err := sb.db.GetProxyBySerialNumber(ctx, node.SerialNumber, node.VersionSetID)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to get proxies")
+		} else {
+			response.Proxy = make([]*v1.Proxy, len(proxies))
+			for i, proxy := range proxies {
+				response.Proxy[i] = &v1.Proxy{
+					Id:                 int32(proxy.ID),
+					Name:               proxy.Name,
+					NodeSerialNumber:   proxy.NodeSerial,
+					GroupName:          proxy.GroupName,
+					State:              proxy.State,
+					ProxyType:          v1.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
+					ServerEndpointAddr: proxy.ServerEndpointAddr,
+					ClientEndpointAddr: proxy.ClientEndpointAddr,
+					VersionSetId:       proxy.VersionSetID.String(),
+				}
+			}
+		}
 	}
 
-	return &node_rsp, nil
+	return response, nil
 }
 
-func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeRequest) (*empty.Empty, error) {
+func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeRequest) (*emptypb.Empty, error) {
 
-	//create map[string]interface{} with req.GetSerialNumber(), req.GetNetworkIndex(), req.GetLocality(), but jsut if available
 	updates := make(map[string]interface{})
-	if req.SerialNumber != nil {
-		updates["serial_number"] = req.GetSerialNumber()
+	if req.GetNetworkIndex() != 0 {
+		updates["network_index"] = req.GetNetworkIndex()
 	}
-	if req.NetworkIndex != nil {
-		updates["network_index"] = int(req.GetNetworkIndex())
-	}
-	if req.Locality != nil {
+	if req.GetLocality() != "" {
 		updates["locality"] = req.GetLocality()
 	}
-	if req.VersionSetId != nil {
+	if req.GetLastSeen() != nil {
+		updates["last_seen"] = req.GetLastSeen().AsTime()
+	}
 
-		uuid_version, err := uuid.FromString(req.GetVersionSetId())
-
+	switch query := req.GetQuery().(type) {
+	case *v1.UpdateNodeRequest_Id:
+		where_string := fmt.Sprintf("id = %d", req.GetId())
+		err := sb.db.UpdateWhere(ctx, "nodes", updates, where_string)
 		if err != nil {
-			log.Err(err).Msg("failed to convert versionSetId to uuid")
-			return nil, err
+			log.Err(err).Msg("failed to update node")
+			return nil, status.Error(codes.Internal, "failed to update node")
 		}
-		updates["version_set_id"] = uuid_version
+
+	case *v1.UpdateNodeRequest_NodeQuery:
+		versionSetID, err := uuid.FromString(query.NodeQuery.GetVersionSetId())
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
+		}
+		serialNumber := query.NodeQuery.GetSerialNumber()
+		where_string := fmt.Sprintf("serial_number = %s AND version_set_id = %s", serialNumber, versionSetID.String())
+		err = sb.db.UpdateWhere(ctx, "nodes", updates, where_string)
+		if err != nil {
+			log.Err(err).Msg("failed to update node")
+			return nil, fmt.Errorf("failed to update node: %w", err)
+		}
+
+	default:
+		return nil, status.Error(codes.InvalidArgument, "invalid query type")
 	}
 
-	err := sb.db.Update(ctx, "nodes", updates, "id", int(req.GetId()))
-
-	if err != nil {
-		log.Err(err).Msg("failed to update node")
-		return nil, err
-	}
-
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
 }
 
-func (sb *SouthboundService) DeleteNode(ctx context.Context, req *v1.DeleteNodeRequest) (*empty.Empty, error) {
-	err := sb.db.DeleteNode(ctx, int(req.GetId()))
+func (sb *SouthboundService) DeleteNode(ctx context.Context, req *v1.DeleteNodeRequest) (*emptypb.Empty, error) {
+	versionSetID, err := uuid.FromString(req.GetVersionSetId())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
+	}
+
+	err = sb.db.DeleteNode(ctx, req.GetSerialNumber(), versionSetID)
 	if err != nil {
 		log.Err(err).Msg("failed to delete node")
-		return &emptypb.Empty{}, err
+		return nil, status.Error(codes.Internal, "failed to delete node")
 	}
-	return &empty.Empty{}, nil
+
+	return &emptypb.Empty{}, nil
 }

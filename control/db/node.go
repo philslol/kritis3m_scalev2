@@ -9,27 +9,35 @@ import (
 )
 
 func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) (*types.Node, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
 	query := `
-		INSERT INTO nodes (serial_number, network_index, locality, last_seen, created_by, version_set_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, serial_number, network_index, locality, last_seen,  version_set_id, created_at, updated_at, created_by`
+		INSERT INTO nodes (serial_number, network_index, locality, version_set_id, created_by)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`
 
-
-		
-	err = tx.QueryRow(ctx, query,
+	err := s.pool.QueryRow(ctx, query,
 		node.SerialNumber,
 		node.NetworkIndex,
 		node.Locality,
-		node.LastSeen,
-		node.CreatedBy,
 		node.VersionSetID,
-	).Scan(
+		node.CreatedBy,
+	).Scan(&node.ID, &node.CreatedAt, &node.UpdatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create node: %w", err)
+	}
+
+	return node, nil
+}
+
+func (s *StateManager) GetNodebyID(ctx context.Context, Id int) (*types.Node, error) {
+	query := `
+		SELECT id, serial_number, network_index, locality, last_seen, version_set_id, 
+		       created_at, updated_at, created_by
+		FROM nodes 
+		WHERE id = $1`
+
+	node := &types.Node{}
+	err := s.pool.QueryRow(ctx, query, Id).Scan(
 		&node.ID,
 		&node.SerialNumber,
 		&node.NetworkIndex,
@@ -42,102 +50,93 @@ func (s *StateManager) CreateNode(ctx context.Context, node *types.Node) (*types
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert node: %w", err)
-	}
-	tx.Commit(ctx)
-
-	return node, nil
-}
-
-func (s *StateManager) GetNode(ctx context.Context, id int) (*types.Node, error) {
-	node := &types.Node{}
-	query := `SELECT id, serial_number, network_index, locality, last_seen, created_at, updated_at, created_by 
-              FROM nodes WHERE id = $1`
-
-	err := s.pool.QueryRow(ctx, query, id).Scan(
-		&node.ID,
-		&node.SerialNumber,
-		&node.NetworkIndex,
-		&node.Locality,
-		&node.LastSeen,
-		&node.CreatedAt,
-		&node.UpdatedAt,
-		&node.CreatedBy,
-	)
-	if err != nil {
 		return nil, fmt.Errorf("failed to get node: %w", err)
 	}
+
 	return node, nil
 }
 
-func (s *StateManager) DeleteNode(ctx context.Context, id int) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+func (s *StateManager) ListNodes(ctx context.Context, versionSetID *uuid.UUID) ([]*types.Node, error) {
+	var query string
+	var args []interface{}
+
+	if versionSetID != nil {
+		query = `
+			SELECT id, serial_number, network_index, locality, last_seen, version_set_id,
+			       created_at, updated_at, created_by
+			FROM nodes 
+			WHERE version_set_id = $1`
+		args = []interface{}{versionSetID}
+	} else {
+		query = `
+			SELECT id, serial_number, network_index, locality, last_seen, version_set_id,
+			       created_at, updated_at, created_by
+			FROM nodes`
 	}
-	defer tx.Rollback(ctx)
 
-	query := `DELETE FROM nodes WHERE id = $1`
-	_, err = tx.Exec(ctx, query, id)
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("failed to delete node: %w", err)
-	}
-
-	return tx.Commit(ctx)
-}
-
-func (s *StateManager) ListNodes(ctx context.Context, version_set_id *uuid.UUID) ([]*types.Node, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	query := `
-		SELECT id, serial_number, network_index, locality, last_seen, created_at, updated_at, created_by, version_set_id, state
-		FROM nodes WHERE version_set_id = $1
-	`
-
-	// Execute the query
-	rows, err := tx.Query(ctx, query, version_set_id.String)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
 	}
 	defer rows.Close()
 
-	// Slice to hold the results
 	var nodes []*types.Node
-
-	// Iterate over the rows and populate the nodes slice
 	for rows.Next() {
-		var node types.Node
-
+		node := &types.Node{}
 		err := rows.Scan(
 			&node.ID,
 			&node.SerialNumber,
 			&node.NetworkIndex,
 			&node.Locality,
-			node.LastSeen,
+			&node.LastSeen,
+			&node.VersionSetID,
 			&node.CreatedAt,
 			&node.UpdatedAt,
 			&node.CreatedBy,
-			node.VersionSetID,
-			&node.State,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, fmt.Errorf("failed to scan node: %w", err)
 		}
-	}
-
-	// Check for errors after iteration
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during rows iteration: %w", err)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+		nodes = append(nodes, node)
 	}
 
 	return nodes, nil
+}
+
+func (s *StateManager) DeleteNode(ctx context.Context, serialNumber string, versionSetID uuid.UUID) error {
+	query := `DELETE FROM nodes WHERE serial_number = $1 AND version_set_id = $2`
+
+	_, err := s.pool.Exec(ctx, query, serialNumber, versionSetID)
+	if err != nil {
+		return fmt.Errorf("failed to delete node: %w", err)
+	}
+
+	return nil
+}
+
+func (s *StateManager) GetNodebySerial(ctx context.Context, serialNumber string, versionSetID uuid.UUID) (*types.Node, error) {
+	query := `
+		SELECT id, serial_number, network_index, locality, last_seen, version_set_id, 
+		       created_at, updated_at, created_by
+		FROM nodes 
+		WHERE serial_number = $1 AND version_set_id = $2`
+
+	node := &types.Node{}
+	err := s.pool.QueryRow(ctx, query, serialNumber, versionSetID).Scan(
+		&node.ID,
+		&node.SerialNumber,
+		&node.NetworkIndex,
+		&node.Locality,
+		&node.LastSeen,
+		&node.VersionSetID,
+		&node.CreatedAt,
+		&node.UpdatedAt,
+		&node.CreatedBy,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node: %w", err)
+	}
+
+	return node, nil
 }

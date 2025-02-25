@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
@@ -13,7 +14,9 @@ import (
 
 func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.ListEndpointConfigsRequest) (*v1.ListEndpointConfigsResponse, error) {
 	log.Debug().Msgf("Listing endpoint configs")
-	configs, err := sb.db.ListEndpointConfigs(ctx)
+
+	versionSetID := uuid.FromStringOrNil(*req.VersionSetId)
+	configs, err := sb.db.ListEndpointConfigs(ctx, &versionSetID)
 	if err != nil {
 		log.Err(err).Msgf("Failed to list endpoint configs")
 		return nil, err
@@ -25,9 +28,7 @@ func (sb *SouthboundService) ListEndpointConfigs(ctx context.Context, req *v1.Li
 
 	for i, config := range configs {
 		var versionSetId string
-		if config.VersionSetID != nil {
-			versionSetId = *config.VersionSetID
-		}
+		versionSetId = config.VersionSetID.String()
 		response.Configs[i] = &v1.EndpointConfig{
 			Id:                   int32(config.ID),
 			Name:                 config.Name,
@@ -55,7 +56,7 @@ func (sb *SouthboundService) CreateEndpointConfig(ctx context.Context, req *v1.C
 	log.Debug().Msgf("Creating endpoint config: %v", config)
 
 	if req.VersionSetId != "" {
-		config.VersionSetID = &req.VersionSetId
+		config.VersionSetID = uuid.FromStringOrNil(req.VersionSetId)
 	}
 
 	err := sb.db.CreateEndpointConfig(ctx, config)
@@ -64,11 +65,6 @@ func (sb *SouthboundService) CreateEndpointConfig(ctx context.Context, req *v1.C
 		return nil, err
 	}
 
-	var versionSetId string
-	if config.VersionSetID != nil {
-		versionSetId = *config.VersionSetID
-	}
-
 	return &v1.EndpointConfig{
 		Id:                   int32(config.ID),
 		Name:                 config.Name,
@@ -76,21 +72,32 @@ func (sb *SouthboundService) CreateEndpointConfig(ctx context.Context, req *v1.C
 		NoEncryption:         config.NoEncryption,
 		AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[config.ASLKeyExchangeMethod]),
 		Cipher:               config.Cipher,
-		VersionSetId:         versionSetId,
+		VersionSetId:         req.VersionSetId,
 		CreatedBy:            config.CreatedBy,
 	}, nil
 }
 
 func (sb *SouthboundService) GetEndpointConfig(ctx context.Context, req *v1.GetEndpointConfigRequest) (*v1.EndpointConfig, error) {
-	config, err := sb.db.GetEndpointConfigByID(ctx, int(req.Id))
-	if err != nil {
-		log.Err(err)
-		return nil, err
-	}
+	//implement both query options:
+	//1. GetEndpointConfigRequest_Id
+	//2. GetEndpointConfigRequest_EndpointConfigQuery
+	var config *types.EndpointConfig
+	var err error
 
-	var versionSetId string
-	if config.VersionSetID != nil {
-		versionSetId = *config.VersionSetID
+	switch req.Query.(type) {
+	case *v1.GetEndpointConfigRequest_Id:
+		config, err = sb.db.GetEndpointConfigByID(ctx, int(req.GetId()))
+		if err != nil {
+			log.Err(err)
+			return nil, err
+		}
+	case *v1.GetEndpointConfigRequest_EndpointConfigQuery:
+		versionSetID := uuid.FromStringOrNil(req.GetEndpointConfigQuery().VersionSetId)
+		config, err = sb.db.GetEndpointConfigByName(ctx, req.GetEndpointConfigQuery().Name, &versionSetID)
+		if err != nil {
+			log.Err(err)
+			return nil, err
+		}
 	}
 
 	return &v1.EndpointConfig{
@@ -100,14 +107,14 @@ func (sb *SouthboundService) GetEndpointConfig(ctx context.Context, req *v1.GetE
 		NoEncryption:         config.NoEncryption,
 		AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[config.ASLKeyExchangeMethod]),
 		Cipher:               config.Cipher,
-		VersionSetId:         versionSetId,
-		State:                config.State,
+		VersionSetId:         config.VersionSetID.String(),
 		CreatedBy:            config.CreatedBy,
 	}, nil
 }
 
 func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *v1.UpdateEndpointConfigRequest) (*emptypb.Empty, error) {
 	updates := make(map[string]interface{})
+	var where_string string
 
 	if req.Name != nil {
 		updates["name"] = *req.Name
@@ -124,11 +131,22 @@ func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *v1.U
 	if req.Cipher != nil {
 		updates["cipher"] = *req.Cipher
 	}
-	if req.VersionSetId != "" {
-		updates["version_set_id"] = req.VersionSetId
+
+	switch req.Query.(type) {
+	case *v1.UpdateEndpointConfigRequest_Id:
+		where_string := fmt.Sprintf("id = %d", req.GetId())
+		err := sb.db.UpdateWhere(ctx, "endpoint_configs", updates, where_string)
+		if err != nil {
+			log.Err(err)
+			return nil, err
+		}
+	case *v1.UpdateEndpointConfigRequest_EndpointConfigQuery:
+		name := req.GetEndpointConfigQuery().Name
+		versionSetID := uuid.FromStringOrNil(req.GetEndpointConfigQuery().VersionSetId)
+		where_string = fmt.Sprintf("name = %s AND version_set_id = %s", name, versionSetID)
 	}
 
-	err := sb.db.Update(ctx, "endpoint_configs", updates, "id", int(req.Id))
+	err := sb.db.UpdateWhere(ctx, "endpoint_configs", updates, where_string)
 	if err != nil {
 		log.Err(err)
 		return nil, err

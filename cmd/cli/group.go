@@ -18,38 +18,47 @@ func init() {
 	createGroupCmd.Flags().StringP("name", "n", "", "Name of the group")
 	createGroupCmd.MarkFlagRequired("name")
 
-	createGroupCmd.Flags().Int32P("endpoint-config-id", "e", 0, "Endpoint config ID")
-	createGroupCmd.MarkFlagRequired("endpoint-config-id")
+	createGroupCmd.Flags().Int32P("log-level", "l", 0, "Log level for the group")
+	createGroupCmd.MarkFlagRequired("log-level")
 
 	createGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	createGroupCmd.MarkFlagRequired("version-number")
 
-	createGroupCmd.Flags().Int32P("log-level", "l", 0, "Log level for the group")
-	createGroupCmd.Flags().Int32P("legacy-config-id", "c", 0, "Legacy config ID")
-	createGroupCmd.Flags().Int32P("id", "i", 0, "ID of the group")
+	createGroupCmd.Flags().StringP("endpoint-config", "e", "", "Endpoint config name")
+	createGroupCmd.MarkFlagRequired("endpoint-config")
+
+	createGroupCmd.Flags().StringP("legacy-config", "c", "", "Legacy config name")
+	createGroupCmd.Flags().StringP("created-by", "u", "", "User creating the group")
+	createGroupCmd.MarkFlagRequired("created-by")
 	groupCli.AddCommand(createGroupCmd)
 
 	// Read command flags
-	readGroupCmd.Flags().Int32P("id", "i", 0, "ID of the group")
-	readGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID to list groups for")
+	readGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	readGroupCmd.MarkFlagRequired("version-number")
+	readGroupCmd.Flags().StringP("name", "n", "", "Name of the group")
+	readGroupCmd.MarkFlagRequired("name")
+	readGroupCmd.Flags().BoolP("include", "i", false, "Include related endpoints")
 	groupCli.AddCommand(readGroupCmd)
 
 	// Update command flags
 	updateGroupCmd.Flags().Int32P("id", "i", 0, "ID of the group")
 	updateGroupCmd.MarkFlagRequired("id")
-	updateGroupCmd.Flags().StringP("name", "n", "", "Name of the group")
-	updateGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID to list groups for")
-	updateGroupCmd.Flags().Int32P("endpoint-config-id", "e", 0, "Endpoint config ID")
 	updateGroupCmd.Flags().Int32P("log-level", "l", 0, "Log level for the group")
-	updateGroupCmd.Flags().Int32P("legacy-config-id", "c", 0, "Legacy config ID")
+	updateGroupCmd.Flags().StringP("endpoint-config-name", "e", "", "Endpoint config name")
+	updateGroupCmd.Flags().StringP("legacy-config-name", "c", "", "Legacy config name")
+	updateGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	groupCli.AddCommand(updateGroupCmd)
 
 	// Delete command flags
 	deleteGroupCmd.Flags().Int32P("id", "i", 0, "ID of the group")
 	deleteGroupCmd.MarkFlagRequired("id")
+	deleteGroupCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	deleteGroupCmd.MarkFlagRequired("version-number")
 	groupCli.AddCommand(deleteGroupCmd)
 
 	// List command flags
+	listGroupsCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	listGroupsCmd.Flags().BoolP("include", "i", false, "Include related endpoints")
 	groupCli.AddCommand(listGroupsCmd)
 }
 
@@ -65,22 +74,11 @@ var createGroupCmd = &cobra.Command{
 	Long:  "Create a new group with the specified parameters",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, _ := cmd.Flags().GetString("name")
-		endpointConfigID, _ := cmd.Flags().GetInt32("endpoint-config-id")
 		logLevel, _ := cmd.Flags().GetInt32("log-level")
-
-		legacyConfigID, _ := cmd.Flags().GetInt32("legacy-config-id")
-		var legacy *int32
-		if legacyConfigID == 0 {
-			legacy = nil
-		} else {
-			legacy = &legacyConfigID
-		}
-
 		versionSetID, _ := cmd.Flags().GetString("version-number")
-		if versionSetID == "" {
-			log.Error().Msg("no version set id provided")
-			return fmt.Errorf("no version set id provided")
-		}
+		endpointConfig, _ := cmd.Flags().GetString("endpoint-config")
+		legacyConfig, _ := cmd.Flags().GetString("legacy-config")
+		createdBy, _ := cmd.Flags().GetString("created-by")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -90,19 +88,12 @@ var createGroupCmd = &cobra.Command{
 		defer conn.Close()
 
 		request := &v1.CreateGroupRequest{
-			Name:             name,
-			EndpointConfigId: endpointConfigID,
-			LegacyConfigId:   legacy,
-			LogLevel:         logLevel,
-			VersionSetId:     versionSetID,
-		}
-
-		if cmd.Flags().Changed("log-level") {
-			request.LogLevel = logLevel
-		}
-
-		if cmd.Flags().Changed("legacy-config-id") {
-			request.LegacyConfigId = &legacyConfigID
+			Name:               name,
+			LogLevel:           logLevel,
+			VersionSetId:       versionSetID,
+			EndpointConfigName: endpointConfig,
+			LegacyConfigName:   &legacyConfig,
+			CreatedBy:          createdBy,
 		}
 
 		rsp, err := client.CreateGroup(ctx, request)
@@ -125,12 +116,12 @@ var readGroupCmd = &cobra.Command{
 	Short: "Read group details",
 	Long:  "Read and display details of a specific group",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _ := cmd.Flags().GetInt32("id")
-		versionSetId, _ := cmd.Flags().GetString("version-number")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+		name, _ := cmd.Flags().GetString("name")
 
-		if id == 0 && versionSetId == "" {
-			return fmt.Errorf("either id or version-set-id must be provided")
-		}
+		id, _ := cmd.Flags().GetInt32("id")
+
+		includeEndpoints, _ := cmd.Flags().GetBool("include")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -139,40 +130,38 @@ var readGroupCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
+		var request *v1.GetGroupRequest
 		if id != 0 {
-			request := &v1.GetGroupRequest{
-				Id: id,
+			request = &v1.GetGroupRequest{
+				Query: &v1.GetGroupRequest_Id{
+					Id: id,
+				},
+				IncludeEndpoints: includeEndpoints,
 			}
 
-			rsp, err := client.GetGroup(ctx, request)
-			if err != nil {
-				log.Fatal().Err(err).Msg("Failed to get group")
+		} else if versionSetID != "" && name != "" {
+			request = &v1.GetGroupRequest{
+				Query: &v1.GetGroupRequest_GroupQuery{
+					GroupQuery: &v1.GroupNameQuery{
+						VersionSetId: versionSetID,
+						GroupName:    name,
+					},
+				},
+				IncludeEndpoints: includeEndpoints,
 			}
-
-			if HasMachineOutputFlag() {
-				SuccessOutput(rsp, "", outputFormat)
-				return nil
-			}
-
-			PrintGroupResponseAsTable([]*v1.GroupResponse{rsp})
-			return nil
 		}
 
-		request := &v1.ListGroupsRequest{
-			VersionSetId: &versionSetId,
-		}
-
-		rsp, err := client.ListGroups(ctx, request)
+		rsp, err := client.GetGroup(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list groups")
+			log.Fatal().Err(err).Msg("Failed to get group")
 		}
 
 		if HasMachineOutputFlag() {
-			SuccessOutput(rsp.GetGroups(), "", outputFormat)
+			SuccessOutput(rsp, "", outputFormat)
 			return nil
 		}
 
-		PrintGroupResponseAsTable(rsp.GetGroups())
+		PrintGroupResponseAsTable([]*v1.GroupResponse{rsp})
 		return nil
 	},
 }
@@ -183,10 +172,12 @@ var updateGroupCmd = &cobra.Command{
 	Long:  "Update the details of an existing group",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetInt32("id")
+
 		name, _ := cmd.Flags().GetString("name")
-		endpointConfigID, _ := cmd.Flags().GetInt32("endpoint-config-id")
+
 		logLevel, _ := cmd.Flags().GetInt32("log-level")
-		legacyConfigID, _ := cmd.Flags().GetInt32("legacy-config-id")
+		endpointConfigName, _ := cmd.Flags().GetString("endpoint-config-name")
+		legacyConfigName, _ := cmd.Flags().GetString("legacy-config-name")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
@@ -196,27 +187,36 @@ var updateGroupCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.UpdateGroupRequest{
-			Id: id,
+		var request *v1.UpdateGroupRequest
+		if id != 0 {
+			request = &v1.UpdateGroupRequest{
+				Query: &v1.UpdateGroupRequest_Id{
+					Id: id,
+				},
+			}
+		} else if versionSetID != "" && name != "" {
+			request = &v1.UpdateGroupRequest{
+				Query: &v1.UpdateGroupRequest_GroupQuery{
+					GroupQuery: &v1.GroupNameQuery{
+						VersionSetId: versionSetID,
+						GroupName:    name,
+					},
+				},
+			}
+		} else {
+			log.Fatal().Msg("Must specify either id or version-number and name")
 		}
 
-		if cmd.Flags().Changed("name") {
-			request.Name = &name
+		if cmd.Flags().Changed("endpoint-config-name") {
+			request.EndpointConfigName = &endpointConfigName
 		}
 
-		if cmd.Flags().Changed("endpoint-config-id") {
-			request.EndpointConfigId = &endpointConfigID
+		if cmd.Flags().Changed("legacy-config-name") {
+			request.LegacyConfigName = &legacyConfigName
 		}
 
 		if cmd.Flags().Changed("log-level") {
 			request.LogLevel = &logLevel
-		}
-		if cmd.Flags().Changed("version-number") {
-			request.VersionSetId = &versionSetID
-		}
-
-		if cmd.Flags().Changed("legacy-config-id") {
-			request.LegacyConfigId = &legacyConfigID
 		}
 
 		_, err = client.UpdateGroup(ctx, request)
@@ -262,6 +262,9 @@ var listGroupsCmd = &cobra.Command{
 	Short: "List all groups",
 	Long:  "List all groups in the system",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+		includeEndpoints, _ := cmd.Flags().GetBool("include")
+
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to get client")
@@ -269,7 +272,10 @@ var listGroupsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListGroupsRequest{}
+		request := &v1.ListGroupsRequest{
+			VersionSetId:     &versionSetID,
+			IncludeEndpoints: includeEndpoints,
+		}
 
 		rsp, err := client.ListGroups(ctx, request)
 		if err != nil {
@@ -288,20 +294,21 @@ var listGroupsCmd = &cobra.Command{
 
 func PrintGroupResponseAsTable(groups []*v1.GroupResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tLOG LEVEL\tENDPOINT CONFIG ID\tLEGACY CONFIG ID")
+	fmt.Fprintln(w, "NAME\tVERSION SET ID\tLOG LEVEL\tENDPOINT CONFIG\tLEGACY CONFIG\tID")
 
 	for _, groupResp := range groups {
 		group := groupResp.GetGroup()
-		legacyConfigID := ""
-		if group.LegacyConfigId != nil {
-			legacyConfigID = fmt.Sprintf("%d", *group.LegacyConfigId)
+		legacyConfig := ""
+		if group.LegacyConfigName != nil {
+			legacyConfig = *group.LegacyConfigName
 		}
-		fmt.Fprintf(w, "%d\t%s\t%d\t%d\t%s\n",
-			group.Id,
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%d\n",
 			group.Name,
+			group.VersionSetId,
 			group.LogLevel,
-			group.EndpointConfigId,
-			legacyConfigID,
+			group.EndpointConfigName,
+			legacyConfig,
+			group.Id,
 		)
 	}
 	w.Flush()

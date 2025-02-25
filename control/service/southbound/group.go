@@ -8,27 +8,19 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (s *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*v1.GroupResponse, error) {
 	group := &types.Group{
-		Name:     req.GetName(),
-		LogLevel: int(req.GetLogLevel()),
-	}
-
-	if req.EndpointConfigId != 0 {
-		configID := int(req.EndpointConfigId)
-		group.EndpointConfigID = &configID
-	}
-
-	if req.VersionSetId != "" {
-		version := uuid.FromStringOrNil(req.VersionSetId)
-		group.VersionSetID = &version
-	}
-
-	if req.LegacyConfigId != nil {
-		legacyID := int(*req.LegacyConfigId)
-		group.LegacyConfigID = &legacyID
+		Name:               req.GetName(),
+		LogLevel:           int(req.GetLogLevel()),
+		CreatedBy:          req.GetCreatedBy(),
+		EndpointConfigName: req.GetEndpointConfigName(),
+		LegacyConfigName:   req.GetLegacyConfigName(),
+		VersionSetID:       uuid.FromStringOrNil(req.GetVersionSetId()),
 	}
 
 	if err := s.db.CreateGroup(ctx, group); err != nil {
@@ -39,9 +31,23 @@ func (s *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroup
 }
 
 func (s *SouthboundService) GetGroup(ctx context.Context, req *v1.GetGroupRequest) (*v1.GroupResponse, error) {
-	group, err := s.db.GetByID(ctx, int(req.GetId()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get group: %v", err)
+	var group *types.Group
+	var err error
+
+	switch req.Query.(type) {
+	case *v1.GetGroupRequest_Id:
+		group, err = s.db.GetByID(ctx, int(req.GetId()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get group: %v", err)
+		}
+	case *v1.GetGroupRequest_GroupQuery:
+		versionID := uuid.FromStringOrNil(req.GetGroupQuery().GetVersionSetId())
+		name := req.GetGroupQuery().GetGroupName()
+		group, err = s.db.GetGroupByName(ctx, name, &versionID)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get group: %v", err)
+		}
 	}
 
 	return convertGroupToResponse(group), nil
@@ -72,28 +78,35 @@ func (s *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRe
 func (s *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*empty.Empty, error) {
 	updates := make(map[string]interface{})
 
-	if req.Name != nil {
-		updates["name"] = *req.Name
+	var where_string string
+	switch req.Query.(type) {
+	case *v1.UpdateGroupRequest_Id:
+		updates["id"] = int(req.GetId())
+		where_string = fmt.Sprintf("id = %d", req.GetId())
+	case *v1.UpdateGroupRequest_GroupQuery:
+		name := req.GetGroupQuery().GetGroupName()
+		versionID := uuid.FromStringOrNil(req.GetGroupQuery().GetVersionSetId())
+		where_string = fmt.Sprintf("name = %s AND version_set_id = %s", name, versionID)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "invalid query")
 	}
-	updates["log_level"] = int(req.GetLogLevel())
-	if req.EndpointConfigId != nil {
-		configID := int(*req.EndpointConfigId)
-		updates["endpoint_config_id"] = &configID
-	}
-	if req.LegacyConfigId != nil {
-		legacyID := int(*req.LegacyConfigId)
-		updates["legacy_config_id"] = &legacyID
-	}
-
 	if req.VersionSetId != nil {
-		version := uuid.FromStringOrNil(*req.VersionSetId)
-		updates["legacy_config_id"] = version
+		updates["version_set_id"] = uuid.FromStringOrNil(*req.VersionSetId)
 	}
-
-	if err := s.db.Update(ctx, "groups", updates, "id", int(req.GetId())); err != nil {
-		return nil, fmt.Errorf("failed to update group: %v", err)
+	if req.LogLevel != nil {
+		updates["log_level"] = int(req.GetLogLevel())
 	}
-
+	if req.EndpointConfigName != nil {
+		updates["endpoint_config_name"] = *req.EndpointConfigName
+	}
+	if req.LegacyConfigName != nil {
+		updates["legacy_config_id"] = req.LegacyConfigName
+	}
+	if err := s.db.UpdateWhere(ctx, "groups", updates, where_string); err != nil {
+		//internal error
+		log.Error().Err(err).Msg("failed to update group")
+		return nil, status.Errorf(codes.Internal, "failed to update group: %v", err)
+	}
 	return &empty.Empty{}, nil
 }
 
@@ -107,18 +120,12 @@ func (s *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroup
 
 func convertGroupToResponse(dbGroup *types.Group) *v1.GroupResponse {
 	protoGroup := &v1.Group{
-		Id:       int32(dbGroup.ID),
-		Name:     dbGroup.Name,
-		LogLevel: int32(dbGroup.LogLevel),
-	}
-
-	if dbGroup.EndpointConfigID != nil {
-		protoGroup.EndpointConfigId = int32(*dbGroup.EndpointConfigID)
-	}
-
-	if dbGroup.LegacyConfigID != nil {
-		legacyID := int32(*dbGroup.LegacyConfigID)
-		protoGroup.LegacyConfigId = &legacyID
+		Id:                 int32(dbGroup.ID),
+		Name:               dbGroup.Name,
+		LogLevel:           int32(dbGroup.LogLevel),
+		EndpointConfigName: dbGroup.EndpointConfigName,
+		LegacyConfigName:   &dbGroup.LegacyConfigName,
+		VersionSetId:       dbGroup.VersionSetID.String(),
 	}
 
 	return &v1.GroupResponse{

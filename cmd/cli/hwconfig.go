@@ -21,17 +21,23 @@ func init() {
 	createHwConfigCmd.Flags().StringP("ip-cidr", "i", "", "IP CIDR")
 	createHwConfigCmd.MarkFlagRequired("ip-cidr")
 
-	createHwConfigCmd.Flags().Int32P("node-id", "n", 0, "Node ID")
-	createHwConfigCmd.MarkFlagRequired("node-id")
+	createHwConfigCmd.Flags().StringP("node-serial", "n", "", "Node serial number")
+	createHwConfigCmd.MarkFlagRequired("node-serial")
 
 	createHwConfigCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	createHwConfigCmd.MarkFlagRequired("version-number")
+
+	createHwConfigCmd.Flags().StringP("created-by", "u", "", "User creating the hardware config")
+	createHwConfigCmd.MarkFlagRequired("created-by")
 
 	// Add all commands to hardware config CLI
 	hwConfigCli.AddCommand(createHwConfigCmd)
 
 	// Read command flags
-	readHwConfigCmd.Flags().Int32P("id", "i", 0, "ID of the hardware config")
+	readHwConfigCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	readHwConfigCmd.MarkFlagRequired("version-number")
+	readHwConfigCmd.Flags().StringP("node-serial", "n", "", "Node serial number")
+	readHwConfigCmd.MarkFlagRequired("node-serial")
 	readHwConfigCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	hwConfigCli.AddCommand(readHwConfigCmd)
 
@@ -49,6 +55,8 @@ func init() {
 	hwConfigCli.AddCommand(deleteHwConfigCmd)
 
 	// List command flags
+	listHwConfigsCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	listHwConfigsCmd.MarkFlagRequired("version-number")
 	listHwConfigsCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	hwConfigCli.AddCommand(listHwConfigsCmd)
 }
@@ -66,8 +74,9 @@ var createHwConfigCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		device, _ := cmd.Flags().GetString("device")
 		ipCidr, _ := cmd.Flags().GetString("ip-cidr")
-		nodeID, _ := cmd.Flags().GetInt32("node-id")
+		nodeSerial, _ := cmd.Flags().GetString("node-serial")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
+		createdBy, _ := cmd.Flags().GetString("created-by")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -78,10 +87,11 @@ var createHwConfigCmd = &cobra.Command{
 		defer conn.Close()
 
 		request := &v1.CreateHardwareConfigRequest{
-			Device:       device,
-			IpCidr:       ipCidr,
-			NodeId:       nodeID,
-			VersionSetId: versionSetID,
+			Device:           device,
+			IpCidr:           ipCidr,
+			NodeSerialNumber: nodeSerial,
+			VersionSetId:     versionSetID,
+			CreatedBy:        createdBy,
 		}
 
 		rsp, err := client.CreateHardwareConfig(ctx, request)
@@ -99,6 +109,9 @@ var readHwConfigCmd = &cobra.Command{
 	Short: "Read hardware config details",
 	Long:  "Read and display details of a specific hardware configuration",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+		nodeSerial, _ := cmd.Flags().GetString("node-serial")
+
 		id, _ := cmd.Flags().GetInt32("id")
 
 		ctx, client, conn, cancel, err := getClient()
@@ -109,8 +122,31 @@ var readHwConfigCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetHardwareConfigRequest{
-			Id: id,
+		var request *v1.GetHardwareConfigRequest
+		if id != 0 {
+			//create GetHardwareConfigRequest_Id
+			request = &v1.GetHardwareConfigRequest{
+				Query: &v1.GetHardwareConfigRequest_Id{
+					Id: id,
+				},
+			}
+		} else if versionSetID != "" && nodeSerial != "" {
+			//create GetHardwareConfigRequest_HardwareConfigQuery
+			request = &v1.GetHardwareConfigRequest{
+				Query: &v1.GetHardwareConfigRequest_HardwareConfigQuery{
+					HardwareConfigQuery: &v1.HardwareConfigNameQuery{
+						VersionSetId:     versionSetID,
+						NodeSerialNumber: nodeSerial,
+					},
+				},
+			}
+		} else if versionSetID != "" && nodeSerial == "" {
+			//create GetHardwareConfigRequest_VersionSetId
+			request = &v1.GetHardwareConfigRequest{
+				Query: &v1.GetHardwareConfigRequest_VersionSetId{
+					VersionSetId: versionSetID,
+				},
+			}
 		}
 
 		rsp, err := client.GetHardwareConfig(ctx, request)
@@ -123,7 +159,7 @@ var readHwConfigCmd = &cobra.Command{
 			return nil
 		}
 
-		PrintHardwareConfigAsTable([]*v1.HardwareConfig{rsp.HardwareConfig})
+		PrintHardwareConfigAsTable(rsp.HardwareConfig)
 		return nil
 	},
 }
@@ -197,6 +233,8 @@ var listHwConfigsCmd = &cobra.Command{
 	Short: "List all hardware configs",
 	Long:  "List all hardware configurations in the system",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to get client")
@@ -205,34 +243,38 @@ var listHwConfigsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListHardwareConfigsRequest{}
+		request := &v1.GetHardwareConfigRequest{
+			Query: &v1.GetHardwareConfigRequest_VersionSetId{
+				VersionSetId: versionSetID,
+			},
+		}
 
-		rsp, err := client.ListHardwareConfigs(ctx, request)
+		rsp, err := client.GetHardwareConfig(ctx, request)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to list hardware configs")
 		}
 
 		if HasMachineOutputFlag() {
-			SuccessOutput(rsp.HardwareConfigs, "", outputFormat)
+			SuccessOutput(rsp.HardwareConfig, "", outputFormat)
 			return nil
 		}
 
-		PrintHardwareConfigAsTable(rsp.HardwareConfigs)
+		PrintHardwareConfigAsTable(rsp.HardwareConfig)
 		return nil
 	},
 }
 
 func PrintHardwareConfigAsTable(configs []*v1.HardwareConfig) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "ID\tDEVICE\tIP CIDR\tNODE ID\tVERSION SET ID")
+	fmt.Fprintln(w, "DEVICE\tIP CIDR\tNODE SERIAL\tVERSION SET ID\tCREATED BY")
 
 	for _, config := range configs {
-		fmt.Fprintf(w, "%d\t%s\t%s\t%d\t%s\n",
-			config.Id,
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			config.Device,
 			config.IpCidr,
-			config.NodeId,
+			config.NodeSerialNumber,
 			config.VersionSetId,
+			config.CreatedBy,
 		)
 	}
 	w.Flush()

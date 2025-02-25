@@ -25,13 +25,18 @@ func init() {
 	createEndpointCmd.Flags().StringP("version-number", "v", "", "Reference to the version")
 	endpointCli.AddCommand(createEndpointCmd)
 
-	readEndpointCmd.Flags().Int32P("id", "i", 0, "ID of the endpoint")
-	readEndpointCmd.MarkFlagRequired("id")
+	readEndpointCmd.Flags().Int32P("id", "i", 0, "ID of the endpoint (deprecated)")
+	readEndpointCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	readEndpointCmd.MarkFlagRequired("version-number")
+	readEndpointCmd.Flags().StringP("name", "n", "", "Name of the endpoint")
+	readEndpointCmd.MarkFlagRequired("name")
 	endpointCli.AddCommand(readEndpointCmd)
 
-	updateEndpointCmd.Flags().Int32P("id", "i", 0, "ID of the endpoint")
-	updateEndpointCmd.MarkFlagRequired("id")
-	updateEndpointCmd.Flags().StringP("name", "n", "", "New name for the endpoint")
+	updateEndpointCmd.Flags().Int32P("id", "i", 0, "ID of the endpoint (deprecated)")
+	updateEndpointCmd.Flags().StringP("name", "n", "", "Name of the endpoint")
+	updateEndpointCmd.MarkFlagRequired("name")
+	updateEndpointCmd.Flags().StringP("version-number", "v", "", "Version set ID")
+	updateEndpointCmd.MarkFlagRequired("version-number")
 	updateEndpointCmd.Flags().BoolP("mutual-auth", "m", false, "Enable mutual authentication")
 	updateEndpointCmd.Flags().BoolP("no-encryption", "e", false, "Disable encryption")
 	updateEndpointCmd.Flags().StringP("kex-method", "k", "", "ASL key exchange method")
@@ -104,6 +109,9 @@ var readEndpointCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetInt32("id")
 
+		versionSetID, _ := cmd.Flags().GetString("version-number")
+		name, _ := cmd.Flags().GetString("name")
+
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to get client")
@@ -112,8 +120,20 @@ var readEndpointCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetEndpointConfigRequest{
-			Id: id,
+		request := &v1.GetEndpointConfigRequest{}
+		if id != 0 {
+			request.Query = &v1.GetEndpointConfigRequest_Id{Id: id}
+		} else if versionSetID != "" && name != "" {
+			request = &v1.GetEndpointConfigRequest{
+				Query: &v1.GetEndpointConfigRequest_EndpointConfigQuery{
+					EndpointConfigQuery: &v1.EndpointConfigNameQuery{
+						VersionSetId: versionSetID,
+						Name:         name,
+					},
+				},
+			}
+		} else {
+			log.Fatal().Msg("Must specify either id or version-number and name")
 		}
 
 		rsp, err := client.GetEndpointConfig(ctx, request)
@@ -137,11 +157,13 @@ var updateEndpointCmd = &cobra.Command{
 	Long:  "Update the details of an existing endpoint",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetInt32("id")
+
 		name, _ := cmd.Flags().GetString("name")
 		mutualAuth, _ := cmd.Flags().GetBool("mutual-auth")
 		noEncryption, _ := cmd.Flags().GetBool("no-encryption")
 		kexMethod, _ := cmd.Flags().GetString("kex-method")
 		cipher, _ := cmd.Flags().GetString("cipher")
+		versionSetID, _ := cmd.Flags().GetString("version-number")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -156,13 +178,28 @@ var updateEndpointCmd = &cobra.Command{
 			kexMethodEnum = v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[kexMethod])
 		}
 
-		request := &v1.UpdateEndpointConfigRequest{
-			Id:                   id,
-			Name:                 &name,
-			MutualAuth:           &mutualAuth,
-			NoEncryption:         &noEncryption,
-			AslKeyExchangeMethod: &kexMethodEnum,
-			Cipher:               &cipher,
+		request := &v1.UpdateEndpointConfigRequest{}
+		if id != 0 {
+			request.Query = &v1.UpdateEndpointConfigRequest_Id{Id: id}
+			request.Name = &name
+			request.MutualAuth = &mutualAuth
+			request.NoEncryption = &noEncryption
+			request.AslKeyExchangeMethod = &kexMethodEnum
+			request.Cipher = &cipher
+		} else if versionSetID != "" && name != "" {
+			request.Query = &v1.UpdateEndpointConfigRequest_EndpointConfigQuery{
+				EndpointConfigQuery: &v1.EndpointConfigNameQuery{
+					VersionSetId: versionSetID,
+					Name:         name,
+				},
+			}
+			request.Name = &name
+			request.MutualAuth = &mutualAuth
+			request.NoEncryption = &noEncryption
+			request.AslKeyExchangeMethod = &kexMethodEnum
+			request.Cipher = &cipher
+		} else {
+			log.Fatal().Msg("Must specify either id or version-number and name")
 		}
 
 		_, err = client.UpdateEndpointConfig(ctx, request)
@@ -219,8 +256,12 @@ var listEndpointsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListEndpointConfigsRequest{
-			VersionSetId: versionSetID,
+		request := &v1.ListEndpointConfigsRequest{}
+
+		if versionSetID != "" {
+			request.VersionSetId = &versionSetID
+		} else {
+			log.Fatal().Msg("Must specify version-number")
 		}
 
 		rsp, err := client.ListEndpointConfigs(ctx, request)
