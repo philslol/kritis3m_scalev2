@@ -10,6 +10,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+
+	controlplane "github.com/philslol/kritis3m_scalev2/control/service/control_plane"
 )
 
 type Kritis3m_Scale struct {
@@ -23,6 +25,7 @@ func NewKritis3m_scale(cfg *types.Config) (*Kritis3m_Scale, error) {
 		cfg: cfg,
 		// noisePrivateKey: noisePrivateKey,
 	}
+	_ = controlplane.NewControlPlane(cfg.Broker, cfg.ControlPlane)
 
 	return &app, nil
 }

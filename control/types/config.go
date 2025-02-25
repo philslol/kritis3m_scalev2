@@ -47,7 +47,7 @@ type BrokerConfig struct {
 }
 
 type ControlPlaneConfig struct {
-	Adress         string
+	Address        string
 	Log            LogConfig
 	EndpointConfig asl.EndpointConfig
 }
@@ -253,8 +253,8 @@ func GetControlPlaneConfig() (*ControlPlaneConfig, error) {
 
 	control_plane_config.Log = log
 	control_plane_config.EndpointConfig = *ep
-	control_plane_config.Adress = viper.GetString("control_plane_config.server_address")
-	if control_plane_config.Adress == "" {
+	control_plane_config.Address = viper.GetString("control_plane_config.server_address")
+	if control_plane_config.Address == "" {
 		return nil, fmt.Errorf("no address specified for control plane address")
 	}
 
