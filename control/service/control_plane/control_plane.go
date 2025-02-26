@@ -1,4 +1,4 @@
-package controlplane
+package control_plane
 
 import (
 	"github.com/philslol/kritis3m_scalev2/control/types"
