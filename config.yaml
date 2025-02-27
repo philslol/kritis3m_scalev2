@@ -26,6 +26,7 @@ broker_config:
     format: text
     log_level: 1
   endpoint_config:
+    tcp_only: true
     private_key: "./certs/privateKey.pem"
     device_cert: "./certs/chain.pem" #device certificate chain
     root_cert: "./certs/root.pem"
@@ -40,6 +41,7 @@ control_plane_config:
     format: text
     log_level: 1
   endpoint_config:
+    tcp_only: true
     private_key: "./certs/privateKey.pem"
     device_cert: "./certs/chain.pem" #device certificate chain
     root_cert: "./certs/root.pem"

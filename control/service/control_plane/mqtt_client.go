@@ -27,7 +27,7 @@ type client struct {
 	subs    []string
 }
 
-type mqtt_factory struct {
+type MqttFactory struct {
 	mu            sync.Mutex
 	client_config *mqtt_paho.ClientOptions
 	cfg           types.ControlPlaneConfig
@@ -36,13 +36,14 @@ type mqtt_factory struct {
 	v1.UnimplementedControlPlaneServer
 }
 
-var factory *mqtt_factory
 var log = zerolog.New(os.Stdout).Level(zerolog.DebugLevel)
 
-func ControlPlaneInit(cfg types.ControlPlaneConfig) {
+func ControlPlaneInit(cfg types.ControlPlaneConfig) *MqttFactory {
+
+	var factory *MqttFactory
 
 	client_opts := mqtt_paho.NewClientOptions()
-	factory = &mqtt_factory{
+	factory = &MqttFactory{
 		client_config: client_opts,
 		cfg:           cfg,
 		mu:            sync.Mutex{},
@@ -62,14 +63,20 @@ func ControlPlaneInit(cfg types.ControlPlaneConfig) {
 	}
 
 	factory.client_config = factory.client_config.SetCleanSession(true)
-	factory.client_config.AddBroker("tls://" + cfg.Address)
-	factory.client_config.SetClientID("controller")
 	factory.client_config.SetDefaultPublishHandler(messagePubHandler)
 	factory.client_config.OnConnect = connectHandler
 	factory.client_config.OnConnectionLost = connectLostHandler
 	factory.client_config.OnReconnecting = reconHandler
-	factory.client_config.CustomOpenConnectionFn = mqtt_paho.Get_custom_function(cfg.EndpointConfig)
+
+	if cfg.TcpOnly {
+		factory.client_config.AddBroker("tls://" + cfg.Address)
+		factory.client_config.CustomOpenConnectionFn = mqtt_paho.Get_custom_function(cfg.EndpointConfig)
+	} else {
+		factory.client_config.AddBroker("tcp://" + cfg.Address)
+	}
+
 	factory.client_config.SetProtocolVersion(3)
+	return factory
 
 }
 
@@ -84,9 +91,10 @@ func (c *client) cleanup() {
 
 }
 
-func (f *mqtt_factory) GetClient(id string) (*client, error) {
+func (f *MqttFactory) GetClient(id string) (*client, error) {
 	for _, c := range f.clients {
 		if c.id_name == id {
+			f.client_config.SetClientID(id)
 			c.client = mqtt_paho.NewClient(f.client_config)
 			// Connect with timeout
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -135,7 +143,7 @@ var reconHandler mqtt_paho.ReconnectHandler = func(client mqtt_paho.Client, opts
 /**********************************End  Handler *******************************************/
 
 /********************************** grpc service for control_plane *******************************************/
-func (fac *mqtt_factory) UpdateFleet(req *v1.FleetUpdate, stream grpc.ServerStreamingServer[v1.UpdateResponse]) error {
+func (fac *MqttFactory) UpdateFleet(req *v1.FleetUpdate, stream grpc.ServerStreamingServer[v1.UpdateResponse]) error {
 	fac.logger.Info().Msgf("Starting fleet update for %d nodes, tx_id: %s", len(req.NodeUpdateItems), req.Transaction.TxId)
 
 	c, err := fac.GetClient("update_fleet")
@@ -251,7 +259,7 @@ func (fac *mqtt_factory) UpdateFleet(req *v1.FleetUpdate, stream grpc.ServerStre
 	}
 }
 
-func (fac *mqtt_factory) UpdateNode(req *v1.NodeUpdate, stream grpc.ServerStreamingServer[v1.UpdateResponse]) error {
+func (fac *MqttFactory) UpdateNode(req *v1.NodeUpdate, stream grpc.ServerStreamingServer[v1.UpdateResponse]) error {
 	// Create channel for the stream and done signal
 	streamChan := make(chan v1.UpdateState)
 	doneChan := make(chan error)
@@ -353,7 +361,7 @@ func (fac *mqtt_factory) UpdateNode(req *v1.NodeUpdate, stream grpc.ServerStream
 	}
 }
 
-func (fac *mqtt_factory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer[v1.HelloResponse]) error {
+func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer[v1.HelloResponse]) error {
 
 	c, err := fac.GetClient("hello")
 	if err != nil {
@@ -384,7 +392,7 @@ func (fac *mqtt_factory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServe
 	return nil
 
 }
-func (fac *mqtt_factory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[v1.LogResponse]) error {
+func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[v1.LogResponse]) error {
 	c, err := fac.GetClient("log")
 	if err != nil {
 		log.Err(err).Msgf("failed to get client")

@@ -1,7 +1,11 @@
 package control
 
 import (
+	"context"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/philslol/kritis3m_scalev2/control/db"
 	"github.com/philslol/kritis3m_scalev2/control/service/southbound"
@@ -25,16 +29,40 @@ func NewKritis3m_scale(cfg *types.Config) (*Kritis3m_Scale, error) {
 		cfg: cfg,
 		// noisePrivateKey: noisePrivateKey,
 	}
-	_ = controlplane.NewControlPlane(cfg.Broker, cfg.ControlPlane)
 
 	return &app, nil
 }
 
 func (scale *Kritis3m_Scale) Serve() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
 	database, err := db.NewStateManager()
 	if err != nil {
 		log.Err(err)
 	}
+
+	broker := controlplane.NewBroker(scale.cfg.Broker)
+	if broker == nil {
+		log.Err(err).Msg("Broker is nil")
+	}
+
+	go func() {
+		if err := broker.Serve(ctx); err != nil {
+			log.Err(err).Msg("Broker serve failed")
+			cancel() // Cancel context on broker failure
+		}
+	}()
+
+	control_plane := controlplane.ControlPlaneInit(scale.cfg.ControlPlane)
+	if control_plane == nil {
+		log.Err(err).Msg("Control Plane is nil")
+		log.Fatal().Msg("Control Plane is nil")
+	}
+
 	sb := southbound.NewSouthbound(database)
 
 	//use ServerAddr and create new grpc listening server
@@ -49,12 +77,29 @@ func (scale *Kritis3m_Scale) Serve() {
 	}
 
 	v1.RegisterSouthboundServer(s, sb)
-	err = s.Serve(lis)
-	if err != nil {
-		log.Fatal().Err(err)
+	v1.RegisterControlPlaneServer(s, control_plane)
+
+	// Start gRPC server in a goroutine
+	go func() {
+		log.Info().Msgf("Server listening at %v", lis.Addr())
+		if err := s.Serve(lis); err != nil {
+			log.Fatal().Err(err).Msg("gRPC server error")
+			cancel() // Cancel context on failure
+		}
+	}()
+
+	// Wait for termination signal
+	select {
+	case <-signalChan:
+		log.Info().Msg("Shutdown signal received")
+	case <-ctx.Done():
+		log.Info().Msg("Context cancelled")
 	}
 
-	log.Printf("server listening at %v", lis.Addr())
+	// Graceful shutdown
+	s.GracefulStop()
+	log.Info().Msg("gRPC server stopped")
 
-	return
+	cancel() // Ensure all goroutines stop
+	log.Info().Msg("Shutdown complete")
 }

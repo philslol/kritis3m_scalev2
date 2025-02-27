@@ -44,12 +44,14 @@ type BrokerConfig struct {
 	Adress         string
 	Log            LogConfig
 	EndpointConfig asl.EndpointConfig
+	TcpOnly        bool
 }
 
 type ControlPlaneConfig struct {
 	Address        string
 	Log            LogConfig
 	EndpointConfig asl.EndpointConfig
+	TcpOnly        bool
 }
 
 type LogConfig struct {
@@ -232,6 +234,8 @@ func GetBrokerConfig() (*BrokerConfig, error) {
 		return nil, err
 	}
 
+	broker_config.TcpOnly = viper.GetBool("broker_config.tcp_only")
+
 	broker_config.Log = log
 	broker_config.EndpointConfig = *ep
 	broker_config.Adress = viper.GetString("broker_config.address")
@@ -250,6 +254,7 @@ func GetControlPlaneConfig() (*ControlPlaneConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	control_plane_config.TcpOnly = viper.GetBool("control_plane_config.tcp_only")
 
 	control_plane_config.Log = log
 	control_plane_config.EndpointConfig = *ep
