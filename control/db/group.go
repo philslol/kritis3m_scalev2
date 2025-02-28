@@ -22,7 +22,7 @@ func (s *StateManager) CreateGroup(ctx context.Context, group *types.Group) erro
         ) VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, created_at, updated_at`
 
-		return s.pool.QueryRow(ctx, query,
+		return tx.QueryRow(ctx, query,
 			group.Name,
 			group.LogLevel,
 			group.EndpointConfigName,
@@ -55,7 +55,7 @@ func (s *StateManager) GetByID(ctx context.Context, id int) (*types.Group, error
         FROM groups 
         WHERE id = $1`
 
-		err := s.pool.QueryRow(ctx, query, id).Scan(
+		err := tx.QueryRow(ctx, query, id).Scan(
 			&group.ID,
 			&group.Name,
 			&group.LogLevel,
@@ -102,7 +102,7 @@ func (s *StateManager) GetListGroup(ctx context.Context, versionSetID *uuid.UUID
             created_by
         FROM groups 
         WHERE version_set_id = $1`
-			rows, err = s.pool.Query(ctx, query, versionSetID)
+			rows, err = tx.Query(ctx, query, versionSetID)
 		} else {
 			query = `
         SELECT 
@@ -117,7 +117,7 @@ func (s *StateManager) GetListGroup(ctx context.Context, versionSetID *uuid.UUID
             created_by
         FROM groups 
         `
-			rows, err = s.pool.Query(ctx, query)
+			rows, err = tx.Query(ctx, query)
 		}
 
 		if err != nil {
@@ -169,7 +169,7 @@ func (s *StateManager) GetGroupByName(ctx context.Context, name string, versionS
 			created_by
 		FROM groups 
 		WHERE name = $1 AND version_set_id = $2`
-		err := s.pool.QueryRow(ctx, query, name, versionSetID).Scan(
+		err := tx.QueryRow(ctx, query, name, versionSetID).Scan(
 			&group.ID,
 			&group.Name,
 			&group.LogLevel,

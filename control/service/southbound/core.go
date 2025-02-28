@@ -10,12 +10,16 @@ import (
 //It doesnt matter if cli or ui uses southbound service
 
 type SouthboundService struct {
-	db *db.StateManager
+	db   *db.StateManager
+	addr string
 	v1.UnimplementedSouthboundServer
+	client *v1.ControlPlaneClient
 }
 
-func NewSouthbound(db *db.StateManager) *SouthboundService {
+func NewSouthbound(db *db.StateManager, addr string) *SouthboundService {
+	//create new controlplane client
 	return &SouthboundService{
-		db: db,
+		db:   db,
+		addr: addr,
 	}
 }

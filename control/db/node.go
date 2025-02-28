@@ -41,7 +41,7 @@ func (s *StateManager) GetNodebyID(ctx context.Context, Id int) (*types.Node, er
 		FROM nodes 
 		WHERE id = $1`
 
-		err := s.pool.QueryRow(ctx, query, Id).Scan(
+		err := tx.QueryRow(ctx, query, Id).Scan(
 			&node.ID,
 			&node.SerialNumber,
 			&node.NetworkIndex,
@@ -87,7 +87,7 @@ func (s *StateManager) ListNodes(ctx context.Context, versionSetID *uuid.UUID) (
 			FROM nodes`
 		}
 
-		rows, err := s.pool.Query(ctx, query, args...)
+		rows, err := tx.Query(ctx, query, args...)
 		if err != nil {
 			return err
 		}
@@ -135,7 +135,7 @@ func (s *StateManager) GetNodebySerial(ctx context.Context, serialNumber string,
 		FROM nodes 
 		WHERE serial_number = $1 AND version_set_id = $2`
 
-		return s.pool.QueryRow(ctx, query, serialNumber, versionSetID).Scan(
+		return tx.QueryRow(ctx, query, serialNumber, versionSetID).Scan(
 			&node.ID,
 			&node.SerialNumber,
 			&node.NetworkIndex,

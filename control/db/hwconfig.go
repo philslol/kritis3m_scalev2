@@ -18,7 +18,7 @@ func (s *StateManager) CreateHwConfig(ctx context.Context, config *types.Hardwar
         ) VALUES ($1, $2, $3, $4, $5)
         RETURNING id, created_at, updated_at`
 
-		return s.pool.QueryRow(ctx, query,
+		return tx.QueryRow(ctx, query,
 			config.NodeSerial, config.Device, config.IPCIDR, config.VersionSetID,
 			config.CreatedBy,
 		).Scan(&config.ID, &config.CreatedAt, &config.UpdatedAt)
@@ -38,7 +38,7 @@ func (s *StateManager) GetHwConfigPByID(ctx context.Context, id int) (*types.Har
                created_at, updated_at, created_by
         FROM hardware_configs WHERE id = $1`
 
-		return s.pool.QueryRow(ctx, query, id).Scan(
+		return tx.QueryRow(ctx, query, id).Scan(
 			&config.ID, &config.NodeSerial, &config.Device, &config.IPCIDR,
 			&config.VersionSetID, &config.CreatedAt,
 			&config.UpdatedAt, &config.CreatedBy,
@@ -59,7 +59,7 @@ func (s *StateManager) GetHwConfigbyNodeID(ctx context.Context, nodeID int) ([]*
                created_at, updated_at, created_by
         FROM hardware_configs WHERE node_id = $1`
 
-		rows, err := s.pool.Query(ctx, query, nodeID)
+		rows, err := tx.Query(ctx, query, nodeID)
 		if err != nil {
 			return err
 		}
@@ -94,7 +94,7 @@ func (s *StateManager) GetHwConfigBySerial(ctx context.Context, serialNumber str
                created_at, updated_at, created_by
         FROM hardware_configs WHERE version_set_id = $1 AND node_serial = $2`
 
-		rows, err := s.pool.Query(ctx, query, versionSetID, serialNumber)
+		rows, err := tx.Query(ctx, query, versionSetID, serialNumber)
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func (s *StateManager) GetHwConfigByVersionSetID(ctx context.Context, versionSet
                created_at, updated_at, created_by
         FROM hardware_configs WHERE version_set_id = $1`
 
-		rows, err := s.pool.Query(ctx, query, versionSetID)
+		rows, err := tx.Query(ctx, query, versionSetID)
 		if err != nil {
 			return err
 		}

@@ -63,7 +63,7 @@ func (scale *Kritis3m_Scale) Serve() {
 		log.Fatal().Msg("Control Plane is nil")
 	}
 
-	sb := southbound.NewSouthbound(database)
+	sb := southbound.NewSouthbound(database, scale.cfg.CliConfig.ServerAddr)
 
 	//use ServerAddr and create new grpc listening server
 	lis, err := net.Listen("tcp", scale.cfg.CliConfig.ServerAddr)

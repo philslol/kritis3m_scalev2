@@ -45,6 +45,25 @@ service Southbound{
   rpc GetProxy(GetProxyRequest) returns (ProxyResponse);
   rpc UpdateProxy(UpdateProxyRequest) returns (google.protobuf.Empty);
   rpc DeleteProxy(DeleteProxyRequest) returns (google.protobuf.Empty);
+
+  rpc ActivateFleet(ActivateFleetRequest) returns (ActivateResponse);
+  rpc ActivateNode(ActivateNodeRequest) returns (ActivateResponse);
+}
+
+message ActivateNodeRequest{
+  string version_set_id = 1;
+  string serial_number = 2;
+}
+
+message ActivateFleetRequest{
+  string version_set_id = 1;
+  optional string group_name = 2;
+}
+
+
+message ActivateResponse{
+  int32 retcode = 1;
+  optional google.protobuf.Struct metadata = 2;
 }
 
 enum ProxyType {
