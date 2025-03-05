@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"os"
 	"time"
@@ -16,8 +15,6 @@ import (
 type StateManager struct {
 	pool *pgxpool.Pool
 }
-
-var migrations embed.FS
 
 // Config holds database configuration
 type Config struct {
@@ -77,8 +74,8 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 	)
 	adminPool, err := pgxpool.Connect(ctx, adminConnStr)
 	if err != nil {
-		log.Err(err).Msgf("failed to connect to PostgreSQL: %w", err)
-		return nil, err
+		log.Err(err).Msg("failed to connect to PostgreSQL")
+		return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 	}
 	defer adminPool.Close()
 
@@ -101,7 +98,7 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 	// Connect to the specific database
 	poolConfig, err := pgxpool.ParseConfig(config.BuildConnectionString())
 	if err != nil {
-		log.Err(err).Msgf("failed to parse connection string: %w", err)
+		log.Err(err).Msgf("failed to parse connection string")
 		return nil, err
 	}
 	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
@@ -119,14 +116,14 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 	// Create connection pool
 	pool, err := pgxpool.ConnectConfig(ctx, poolConfig)
 	if err != nil {
-		log.Err(err).Msgf("failed to create connection pool: %w", err)
+		log.Err(err).Msg("failed to create connection pool")
 		return nil, err
 	}
 
 	// Verify connection
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		log.Err(err).Msgf("failed to ping database: %w", err)
+		log.Err(err).Msg("failed to ping database")
 		return nil, err
 	}
 
@@ -173,7 +170,8 @@ func (sm *StateManager) ResetDatabase() error {
 	return sm.ExecuteInTransaction(context.Background(), func(tx pgx.Tx) error {
 		_, err := tx.Exec(context.Background(), dropSQL)
 		if err != nil {
-			return fmt.Errorf("failed to drop tables: %w", err)
+			log.Err(err).Msg("failed to drop tables")
+			return err
 		}
 		return nil
 	})

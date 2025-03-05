@@ -138,8 +138,3 @@ func convertGroupToResponse(dbGroup *types.Group) *v1.GroupResponse {
 		Group: protoGroup,
 	}
 }
-
-func getCurrentUser(ctx context.Context) string {
-	// TODO: Implement proper user context extraction
-	return "system"
-}

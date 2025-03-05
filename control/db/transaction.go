@@ -4,37 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/gofrs/uuid/v5"
-	// uuidpq "github.com/jackc/pgx-gofrs-uuid"
 	"github.com/jackc/pgx/v5"
 )
-
-// completeTransaction completes the current pending transaction.
-func (sm *StateManager) CompleteTransaction(ctx context.Context) error {
-	tx, err := sm.pool.Begin(ctx)
-	_, err = tx.Exec(ctx, `SELECT complete_transaction()`)
-	if err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
-
-// rollbackTransaction rolls back the current pending transaction.
-func (sm *StateManager) rollbackTransaction(ctx context.Context) error {
-	tx, err := sm.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	_, err = tx.Exec(ctx, `SELECT rollback_transaction()`)
-	if err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
-}
 
 // StartTransaction initializes a new transaction and returns the transaction ID.
 func (s *StateManager) StartTransaction(ctx context.Context, createdBy, description string) (uuid.UUID, error) {
@@ -63,29 +35,6 @@ func (s *StateManager) StartTransaction(ctx context.Context, createdBy, descript
 	}
 
 	return transactionID, nil
-}
-
-func (s *StateManager) ApplyChanges(ctx context.Context, transactionID uuid.UUID, createdBy string, apply_state bool) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %v", err)
-	}
-	defer tx.Rollback(ctx) // Ensure rollback if failure occurs
-
-	// Simulated logic: attempt network updates
-	if !apply_state {
-		log.Debug().Msg("Network update failed, rolling back")
-		err = s.rollbackTransaction(ctx)
-		return fmt.Errorf("network update failed")
-	}
-
-	// Mark transaction as successful
-	_, err = tx.Exec(ctx, `UPDATE transactions SET status = 'active', completed_at = NOW() WHERE id = $1`, transactionID)
-	if err != nil {
-		return fmt.Errorf("failed to update transaction status: %v", err)
-	}
-
-	return tx.Commit(ctx)
 }
 
 // ExecuteInTransaction executes the given operation within a transaction

@@ -15,7 +15,7 @@ import (
 func (sb *SouthboundService) getControlPlaneClient(ctx context.Context) (v1.ControlPlaneClient, *grpc.ClientConn, error) {
 	grpcOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
-	conn, err := grpc.Dial(sb.addr, grpcOptions...)
+	conn, err := grpc.NewClient(sb.addr, grpcOptions...)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not connect to control plane")
 		return nil, nil, status.Error(codes.Internal, "Failed to connect to control plane")

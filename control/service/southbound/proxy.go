@@ -72,6 +72,9 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 		proxies = append(proxies, proxy)
 	case *v1.GetProxyRequest_NameQuery:
 		versionSetID, err := uuid.FromString(query.NameQuery.GetVersionSetId())
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
+		}
 		proxy_name := query.NameQuery.GetName()
 		proxy, err := sb.db.GetProxyByName(ctx, proxy_name, versionSetID)
 		if err != nil {
@@ -80,6 +83,9 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 		proxies = append(proxies, proxy)
 	case *v1.GetProxyRequest_SerialQuery:
 		versionSetID, err := uuid.FromString(query.SerialQuery.GetVersionSetId())
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
+		}
 		serialNumber := query.SerialQuery.GetSerial()
 		proxies, err = sb.db.GetProxyBySerialNumber(ctx, serialNumber, versionSetID)
 		if err != nil {
@@ -164,6 +170,9 @@ func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *v1.UpdateProx
 		}
 	case *v1.UpdateProxyRequest_NameQuery:
 		versionSetID, err := uuid.FromString(query.NameQuery.GetVersionSetId())
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
+		}
 		proxy_name := query.NameQuery.GetName()
 		where_string := fmt.Sprintf("name = %s AND version_set_id = %s", proxy_name, versionSetID.String())
 		err = sb.db.UpdateWhere(ctx, "proxies", updates, where_string)

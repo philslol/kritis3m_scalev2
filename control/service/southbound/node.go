@@ -139,6 +139,9 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
 		}
 		node, err = sb.db.GetNodebySerial(ctx, query.NodeQuery.GetSerialNumber(), versionSetID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "cannot get node: %v", err)
+		}
 	default:
 		return nil, status.Error(codes.InvalidArgument, "invalid query type")
 	}

@@ -41,7 +41,7 @@ func getClient() (context.Context, v1.SouthboundClient, *grpc.ClientConn, contex
 	address := cfg.CliConfig.ServerAddr
 	log.Trace().Caller().Str("address", address).Msg("Connecting via gRPC")
 
-	conn, err := grpc.Dial(address, grpcOptions...)
+	conn, err := grpc.NewClient(address, grpcOptions...)
 	if err != nil {
 		log.Fatal().Caller().Err(err).Msgf("Could not connect: %v", err)
 		os.Exit(-1) // we get here if logging is suppressed (i.e., json output)

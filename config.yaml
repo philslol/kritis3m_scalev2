@@ -22,11 +22,11 @@ asl_config:
 
 broker_config:
   address: ":8883"
+  tcp_only: true
   log:
     format: text
     log_level: 1
   endpoint_config:
-    tcp_only: true
     private_key: "./certs/privateKey.pem"
     device_cert: "./certs/chain.pem" #device certificate chain
     root_cert: "./certs/root.pem"
@@ -37,11 +37,11 @@ broker_config:
 
 control_plane_config:
   server_address: ":8080"
+  tcp_only: true
   log:
     format: text
     log_level: 1
   endpoint_config:
-    tcp_only: true
     private_key: "./certs/privateKey.pem"
     device_cert: "./certs/chain.pem" #device certificate chain
     root_cert: "./certs/root.pem"
