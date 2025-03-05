@@ -5,27 +5,15 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
+	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 )
 
-type NodeUpdateItem struct {
-	SerialNumber     string
-	NetworkIndex     int
-	Locality         string
-	VersionSetId     string
-	GroupProxyUpdate []GroupProxyUpdate
-}
-type GroupProxyUpdate struct {
-	GroupName      string
-	GroupLogLevel  int
-	EndpointConfig types.EndpointConfig
-	LegacyConfig   *types.EndpointConfig
-	Proxies        []*types.Proxy
-}
-
-func (s *StateManager) NodeUpdate() {
-
-	node := &NodeUpdateItem{}
-	groupMap := make(map[string]*GroupProxyUpdate)
+func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx context.Context) (*v1.NodeUpdateItem, error) {
+	node := &v1.NodeUpdateItem{
+		SerialNumber: SerialNumber,
+		VersionSetId: VersionSet,
+	}
+	groupMap := make(map[string]*v1.GroupProxyUpdate)
 	query := `
 	WITH node_info AS (
 	    SELECT
@@ -95,62 +83,70 @@ func (s *StateManager) NodeUpdate() {
 	`
 
 	s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(query, serialNumber, versionSetID)
+		rows, err := tx.Query(ctx, query, SerialNumber, VersionSet)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		defer rows.Close()
 
 		for rows.Next() {
 			var (
-				groupName      sql.NullString
-				groupLogLevel  sql.NullInt32
-				proxyID        sql.NullInt32
-				proxyName      sql.NullString
-				proxyState     sql.NullInt32
-				proxyType      sql.NullInt32
-				serverEndpoint sql.NullString
-				clientEndpoint sql.NullString
-				endpointConfig EndpointConfig
-				legacyConfig   EndpointConfig
+				groupName      string
+				groupLogLevel  int32
+				proxyID        int32
+				proxyName      string
+				proxyState     bool
+				proxyType      int32
+				serverEndpoint string
+				clientEndpoint string
+				endpointConfig types.EndpointConfig
+				legacyConfig   types.EndpointConfig
 			)
 
 			err := rows.Scan(
 				&node.SerialNumber, &node.NetworkIndex, &node.Locality, &node.VersionSetId,
 				&groupName, &groupLogLevel,
-				&endpointConfig.Name, &endpointConfig.MutualAuth, &endpointConfig.NoEncryption, &endpointConfig.KexMethod, &endpointConfig.Cipher,
-				&legacyConfig.Name, &legacyConfig.MutualAuth, &legacyConfig.NoEncryption, &legacyConfig.KexMethod, &legacyConfig.Cipher,
+				&endpointConfig.Name, &endpointConfig.MutualAuth, &endpointConfig.NoEncryption, &endpointConfig.ASLKeyExchangeMethod, &endpointConfig.Cipher,
+				&legacyConfig.Name, &legacyConfig.MutualAuth, &legacyConfig.NoEncryption, &legacyConfig.ASLKeyExchangeMethod, &legacyConfig.Cipher,
 				&proxyID, &proxyName, &proxyState, &proxyType, &serverEndpoint, &clientEndpoint,
 			)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
-			groupKey := groupName.String
+			groupKey := groupName
 			if groupKey == "" {
 				continue
 			}
 
 			if _, exists := groupMap[groupKey]; !exists {
-				groupMap[groupKey] = &GroupProxyUpdate{
-					GroupName:      groupName.String,
-					GroupLogLevel:  groupLogLevel.Int32,
-					EndpointConfig: &endpointConfig,
-					LegacyConfig:   legacyConfig,
-					Proxies:        []UpdateProxy{},
+				groupMap[groupKey] = &v1.GroupProxyUpdate{
+					GroupName:     groupName,
+					GroupLogLevel: groupLogLevel,
+					EndpointConfig: &v1.EndpointConfig{
+						Name:                 endpointConfig.Name,
+						MutualAuth:           endpointConfig.MutualAuth,
+						NoEncryption:         endpointConfig.NoEncryption,
+						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[endpointConfig.ASLKeyExchangeMethod]),
+						Cipher:               endpointConfig.Cipher,
+					},
+					LegacyConfig: &v1.EndpointConfig{
+						Name:                 legacyConfig.Name,
+						MutualAuth:           legacyConfig.MutualAuth,
+						NoEncryption:         legacyConfig.NoEncryption,
+						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[legacyConfig.ASLKeyExchangeMethod]),
+						Cipher:               legacyConfig.Cipher,
+					},
+					Proxies: []*v1.UpdateProxy{},
 				}
 			}
 
-			if proxyID.Valid {
-				groupMap[groupKey].Proxies = append(groupMap[groupKey].Proxies, UpdateProxy{
-					ID:             proxyID.Int32,
-					Name:           proxyName.String,
-					State:          proxyState.Int32,
-					ProxyType:      proxyType.Int32,
-					ServerEndpoint: serverEndpoint.String,
-					ClientEndpoint: clientEndpoint.String,
-				})
-			}
+			groupMap[groupKey].Proxies = append(groupMap[groupKey].Proxies, &v1.UpdateProxy{
+				Name:               proxyName,
+				ServerEndpointAddr: serverEndpoint,
+				ClientEndpointAddr: clientEndpoint,
+				ProxyType:          v1.ProxyType(proxyType),
+			})
 		}
 
 		for _, group := range groupMap {
@@ -160,4 +156,8 @@ func (s *StateManager) NodeUpdate() {
 		return nil
 	})
 
+	if len(node.GroupProxyUpdate) == 0 {
+		return nil, nil
+	}
+	return node, nil
 }

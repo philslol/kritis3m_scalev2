@@ -1,21 +1,18 @@
 package southbound
 
 import (
+	"github.com/philslol/kritis3m_scalev2/control/db"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
-	//include db
-
-	db "github.com/philslol/kritis3m_scalev2/control/db"
 )
 
-//It doesnt matter if cli or ui uses southbound service
-
+// SouthboundService handles communication with the control plane
 type SouthboundService struct {
 	db   *db.StateManager
 	addr string
 	v1.UnimplementedSouthboundServer
-	client *v1.ControlPlaneClient
 }
 
+// NewSouthbound creates a new instance of SouthboundService
 func NewSouthbound(db *db.StateManager, addr string) *SouthboundService {
 	//create new controlplane client
 	return &SouthboundService{
