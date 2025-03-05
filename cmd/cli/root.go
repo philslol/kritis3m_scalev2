@@ -14,6 +14,8 @@ const (
 	deprecateNamespaceMessage = "use --user"
 )
 
+var outputFormat string
+
 var cfgFile string = "/home/philipp/development/ctrl_plane_test/kritis3m_scalev2/config.yaml" // Default file path if no argument provided
 
 func init() {

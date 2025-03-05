@@ -17,6 +17,35 @@ const (
 	VERSION_STATE_DISABLED           VersionState = "disabled"
 )
 
+type VersionTransitionStatus string
+
+const (
+	VersionTransitionPending  VersionTransitionStatus = "pending"
+	VersionTransitionActive   VersionTransitionStatus = "active"
+	VersionTransitionFailed   VersionTransitionStatus = "failed"
+	VersionTransitionRollback VersionTransitionStatus = "rollback"
+)
+
+// TransactionType represents the PostgreSQL ENUM transaction_type.
+type TransactionType string
+
+const (
+	TransactionTypeNodeUpdate    TransactionType = "node_update"
+	TransactionTypeGroupUpdate   TransactionType = "group_update"
+	TransactionTypeVersionUpdate TransactionType = "version_update"
+)
+
+type TransactionState string
+
+const (
+	TransactionStateError      TransactionState = "error"
+	TransactionStateUnknown    TransactionState = "unknown"
+	TransactionStatePublished  TransactionState = "published"
+	TransactionStateReceived   TransactionState = "received"
+	TransactionStateApplicable TransactionState = "applicable"
+	TransactionStateApplied    TransactionState = "applied"
+)
+
 // Enum mapping for PostgreSQL (converts lowercase DB values to Go uppercase)
 var VersionStateMap = map[string]int32{
 	"draft":              0,
@@ -90,26 +119,15 @@ type Proxy struct {
 }
 
 type VersionSet struct {
-	ID          uuid.UUID  `json:"id"`
-	Name        string     `json:"name"`
-	Description *string    `json:"description"`
-	State       string     `json:"state"`
-	CreatedAt   time.Time  `json:"created_at"`
-	ActivatedAt *time.Time `json:"activated_at"`
-	DisabledAt  *time.Time `json:"disabled_at"`
-	CreatedBy   string     `json:"created_by"`
-	Metadata    []byte     `json:"metadata"` // JSONB is stored as a byte slice
-}
-
-type VersionTransition struct {
-	ID            string     `json:"id"`
-	FromVersionID uuid.UUID  `json:"from_version_id"`
-	ToVersionID   uuid.UUID  `json:"to_version_id"`
-	Status        string     `json:"status"`
-	StartedAt     time.Time  `json:"started_at"`
-	CompletedAt   *time.Time `json:"completed_at"`
-	CreatedBy     string     `json:"created_by"`
-	Metadata      []byte     `json:"metadata"`
+	ID          uuid.UUID    `json:"id"`
+	Name        string       `json:"name"`
+	Description *string      `json:"description"`
+	State       VersionState `json:"state"`
+	CreatedAt   time.Time    `json:"created_at"`
+	ActivatedAt *time.Time   `json:"activated_at"`
+	DisabledAt  *time.Time   `json:"disabled_at"`
+	CreatedBy   string       `json:"created_by"`
+	Metadata    []byte       `json:"metadata"` // JSONB is stored as a byte slice
 }
 
 type EndpointConfig struct {
@@ -123,4 +141,37 @@ type EndpointConfig struct {
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 	CreatedBy            string    `json:"created_by"`
+}
+
+// Transaction represents the transactions table.
+type Transaction struct {
+	ID                  int             `json:"id"`
+	Type                TransactionType `json:"type"`
+	VersionSetID        *uuid.UUID      `json:"version_set_id,omitempty"`
+	VersionTransitionID *int            `json:"version_transition_id,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+	CompletedAt         *time.Time      `json:"completed_at,omitempty"`
+	Description         *string         `json:"description,omitempty"`
+}
+
+// TransactionLog represents the transaction_log table.
+type TransactionLog struct {
+	ID            int              `json:"id"`
+	TransactionID int              `json:"transaction_id"`
+	NodeName      string           `json:"node_name"`
+	State         TransactionState `json:"state"`
+	Timestamp     time.Time        `json:"timestamp"`
+	Metadata      []byte           `json:"metadata"`
+}
+
+// VersionTransition represents the version_transitions table.
+type VersionTransition struct {
+	ID                    int                     `json:"id"`
+	FromVersionTransition *int                    `json:"from_version_transition"`
+	ToVersionSetID        uuid.UUID               `json:"to_version_id"`
+	Status                VersionTransitionStatus `json:"status"`
+	StartedAt             time.Time               `json:"started_at"`
+	CompletedAt           *time.Time              `json:"completed_at"`
+	CreatedBy             string                  `json:"created_by"`
+	Metadata              []byte                  `json:"metadata"`
 }

@@ -49,8 +49,7 @@ func (c Config) BuildConnectionString() string {
 	)
 }
 
-func NewStateManager() (*StateManager, error) {
-	ctx := context.Background()
+func NewStateManager(ctx context.Context) (*StateManager, error) {
 
 	// Get database configuration
 	dbConfig := DefaultConfig()
@@ -130,45 +129,52 @@ func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
 		log.Err(err).Msgf("failed to ping database: %w", err)
 		return nil, err
 	}
-	initializeSchema(ctx, pool)
 
 	return pool, nil
 }
 
-// initializeSchema sets up the database schema
-func initializeSchema(ctx context.Context, pool *pgxpool.Pool) error {
-	// Create required extensions
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		log.Err(err).Msgf("failed to begin transaction: %w", err)
-		return err
-	}
-	defer tx.Rollback(ctx)
+// InitializeSchema creates all necessary database tables and types
+func (sm *StateManager) InitializeSchema() error {
+	log.Debug().Msg("Initializing database schema")
 
-	_, err = tx.Exec(ctx, `
-		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-	`)
-	if err != nil {
-		log.Err(err).Msgf("failed to create extensions: %w", err)
-		return err
-	}
-
-	// Create schema tables
-	_, err = tx.Exec(ctx, schemaSQL)
-	if err != nil {
-		log.Err(err).Msgf("failed to create schema: %w", err)
-		return err
-	}
-
-	return tx.Commit(ctx)
+	return sm.ExecuteInTransaction(context.Background(), func(tx pgx.Tx) error {
+		_, err := tx.Exec(context.Background(), schemaSQL)
+		if err != nil {
+			return fmt.Errorf("failed to initialize schema: %w", err)
+		}
+		return nil
+	})
 }
 
-// loadSQLFile reads and returns the content of a SQL file.
-func loadSQLFile(filename string) (string, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		log.Err(err).Msgf("failed to read SQL file %s: %w", filename, err)
-		return "", err
-	}
-	return string(content), nil
+// ResetDatabase drops all tables and recreates them
+func (sm *StateManager) ResetDatabase() error {
+	log.Debug().Msg("Resetting database")
+
+	// Drop all tables in reverse order of dependencies
+	dropSQL := `
+	DROP TABLE IF EXISTS proxies CASCADE;
+	DROP TABLE IF EXISTS hardware_configs CASCADE;
+	DROP TABLE IF EXISTS groups CASCADE;
+	DROP TABLE IF EXISTS endpoint_configs CASCADE;
+	DROP TABLE IF EXISTS nodes CASCADE;
+	DROP TABLE IF EXISTS transaction_log CASCADE;
+	DROP TABLE IF EXISTS transactions CASCADE;
+	DROP TABLE IF EXISTS version_transitions CASCADE;
+	DROP TABLE IF EXISTS version_sets CASCADE;
+	
+	DROP TYPE IF EXISTS proxy_type CASCADE;
+	DROP TYPE IF EXISTS version_state CASCADE;
+	DROP TYPE IF EXISTS version_transition_status CASCADE;
+	DROP TYPE IF EXISTS transaction_type CASCADE;
+	DROP TYPE IF EXISTS transaction_state CASCADE;
+	DROP TYPE IF EXISTS operation_type CASCADE;
+	DROP TYPE IF EXISTS asl_key_exchange_method CASCADE;
+	`
+	return sm.ExecuteInTransaction(context.Background(), func(tx pgx.Tx) error {
+		_, err := tx.Exec(context.Background(), dropSQL)
+		if err != nil {
+			return fmt.Errorf("failed to drop tables: %w", err)
+		}
+		return nil
+	})
 }

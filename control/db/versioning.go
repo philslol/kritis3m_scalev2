@@ -132,13 +132,13 @@ func (s *StateManager) ActivateVersionSet(ctx context.Context, id uuid.UUID) err
 func (s *StateManager) CreateVersionTransition(ctx context.Context, transition *types.VersionTransition) error {
 	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			INSERT INTO version_transitions (from_version_id, to_version_id, status, created_by, metadata)
+			INSERT INTO version_transitions (from_version_transition, to_version_id, status, created_by, metadata)
 			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id, started_at`
 
 		return tx.QueryRow(ctx, query,
-			transition.FromVersionID,
-			transition.ToVersionID,
+			transition.FromVersionTransition,
+			transition.ToVersionSetID,
 			transition.Status,
 			transition.CreatedBy,
 			transition.Metadata,
@@ -150,11 +150,11 @@ func (s *StateManager) GetVersionTransitionByID(ctx context.Context, id string) 
 	var vt types.VersionTransition
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			SELECT id, from_version_id, to_version_id, status, started_at, completed_at, created_by, metadata
+			SELECT id, from_version_transition, to_version_id, status, started_at, completed_at, created_by, metadata
 			FROM version_transitions WHERE id = $1`
 
 		return tx.QueryRow(ctx, query, id).Scan(
-			&vt.ID, &vt.FromVersionID, &vt.ToVersionID, &vt.Status,
+			&vt.ID, &vt.FromVersionTransition, &vt.ToVersionSetID, &vt.Status,
 			&vt.StartedAt, &vt.CompletedAt, &vt.CreatedBy, &vt.Metadata,
 		)
 	})
@@ -164,51 +164,51 @@ func (s *StateManager) GetVersionTransitionByID(ctx context.Context, id string) 
 	return &vt, nil
 }
 
-func (s *StateManager) ListVersionTransitions(ctx context.Context) ([]*types.VersionTransition, error) {
-	var transitions []*types.VersionTransition
-	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
-		query := `SELECT id, from_version_id, to_version_id, status, started_at, completed_at, created_by, metadata 
-			FROM version_transitions`
-		rows, err := tx.Query(ctx, query)
-		if err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
-		}
-		defer rows.Close()
+// func (s *StateManager) ListVersionTransitions(ctx context.Context) ([]*types.VersionTransition, error) {
+// 	var transitions []*types.VersionTransition
+// 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+// 		query := `SELECT id, from_version_id, to_version_id, status, started_at, completed_at, created_by, metadata
+// 			FROM version_transitions`
+// 		rows, err := tx.Query(ctx, query)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to execute query: %w", err)
+// 		}
+// 		defer rows.Close()
 
-		for rows.Next() {
-			vt := new(types.VersionTransition)
-			err := rows.Scan(
-				&vt.ID, &vt.FromVersionID, &vt.ToVersionID, &vt.Status,
-				&vt.StartedAt, &vt.CompletedAt, &vt.CreatedBy, &vt.Metadata,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to scan row: %w", err)
-			}
-			transitions = append(transitions, vt)
-		}
-		return rows.Err()
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list version transitions: %w", err)
-	}
-	return transitions, nil
-}
+// 		for rows.Next() {
+// 			vt := new(types.VersionTransition)
+// 			err := rows.Scan(
+// 				&vt.ID, &vt.FromVersionID, &vt.ToVersionID, &vt.Status,
+// 				&vt.StartedAt, &vt.CompletedAt, &vt.CreatedBy, &vt.Metadata,
+// 			)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to scan row: %w", err)
+// 			}
+// 			transitions = append(transitions, vt)
+// 		}
+// 		return rows.Err()
+// 	})
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to list version transitions: %w", err)
+// 	}
+// 	return transitions, nil
+// }
 
-// UpdateVersionSet updates an existing version set
-func (s *StateManager) UpdateVersionSet(ctx context.Context, vs types.VersionSet) error {
-	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			UPDATE version_sets 
-			SET name = $1, description = $2, state = $3, metadata = $4
-			WHERE id = $5 AND disabled_at IS NULL`
-		result, err := tx.Exec(ctx, query, vs.Name, vs.Description, vs.State, vs.Metadata, vs.ID)
-		if err != nil {
-			return fmt.Errorf("failed to update version set: %w", err)
-		}
+// // UpdateVersionSet updates an existing version set
+// func (s *StateManager) UpdateVersionSet(ctx context.Context, vs types.VersionSet) error {
+// 	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+// 		query := `
+// 			UPDATE version_sets
+// 			SET name = $1, description = $2, state = $3, metadata = $4
+// 			WHERE id = $5 AND disabled_at IS NULL`
+// 		result, err := tx.Exec(ctx, query, vs.Name, vs.Description, vs.State, vs.Metadata, vs.ID)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to update version set: %w", err)
+// 		}
 
-		if result.RowsAffected() == 0 {
-			return fmt.Errorf("version set not found or already disabled")
-		}
-		return nil
-	})
-}
+// 		if result.RowsAffected() == 0 {
+// 			return fmt.Errorf("version set not found or already disabled")
+// 		}
+// 		return nil
+// 	})
+// }

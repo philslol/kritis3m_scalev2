@@ -69,10 +69,10 @@ func ControlPlaneInit(cfg types.ControlPlaneConfig) *MqttFactory {
 	factory.client_config.OnReconnecting = reconHandler
 
 	if cfg.TcpOnly {
+		factory.client_config.AddBroker("tcp://" + cfg.Address)
+	} else {
 		factory.client_config.AddBroker("tls://" + cfg.Address)
 		factory.client_config.CustomOpenConnectionFn = mqtt_paho.Get_custom_function(cfg.EndpointConfig)
-	} else {
-		factory.client_config.AddBroker("tcp://" + cfg.Address)
 	}
 
 	factory.client_config.SetProtocolVersion(3)

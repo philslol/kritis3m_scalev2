@@ -4,7 +4,11 @@ const schemaSQL = `
 -- Keep existing ENUM types
 CREATE TYPE proxy_type AS ENUM ('forward', 'reverse', 'tlstls');
 CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
-CREATE TYPE transaction_status AS ENUM ('pending', 'active', 'failed', 'rollback');
+CREATE TYPE version_transition_status AS ENUM ('pending', 'active', 'failed', 'rollback');
+
+CREATE TYPE transaction_type AS ENUM ('node_update', 'group_update', 'version_update');
+CREATE TYPE transaction_state AS ENUM ('error', 'unknown', 'published', 'received', 'applicable', 'applied');
+
 CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
 CREATE TYPE asl_key_exchange_method AS ENUM (
     'ASL_KEX_DEFAULT',
@@ -26,7 +30,6 @@ CREATE TYPE asl_key_exchange_method AS ENUM (
     'ASL_KEX_HYBRID_X25519_MLKEM768'
 );
 
--- Version Management Table (unchanged)
 CREATE TABLE IF NOT EXISTS version_sets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -39,29 +42,41 @@ CREATE TABLE IF NOT EXISTS version_sets (
     metadata JSONB
 );
 
--- Transactions Table (unchanged)
+-- Version transitions (unchanged)
+CREATE TABLE IF NOT EXISTS version_transitions (
+                                                   id SERIAL PRIMARY KEY,
+                                                   from_version_transition INT REFERENCES version_transitions(id),
+                                                   to_version_id UUID REFERENCES version_sets(id) NOT NULL,
+                                                   status version_transition_status NOT NULL DEFAULT 'pending',
+                                                   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                                   completed_at TIMESTAMPTZ,
+                                                   created_by TEXT NOT NULL,
+                                                   metadata JSONB
+);
+
+
+
+-- Modified Transactions Table
 CREATE TABLE IF NOT EXISTS transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    status transaction_status NOT NULL DEFAULT 'pending',
+    id SERIAL PRIMARY KEY,
+    type transaction_type NOT NULL,
+    version_set_id UUID REFERENCES version_sets(id),
+    version_transition_id INT REFERENCES version_transitions(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ,
-    created_by TEXT NOT NULL,
-    description TEXT,
+    description TEXT
+);
+
+-- Renamed Audit Log to Transaction Log and simplified structure
+CREATE TABLE IF NOT EXISTS transaction_log (
+    id SERIAL PRIMARY KEY,
+    transaction_id INT REFERENCES transactions(id) ON DELETE CASCADE,
+    node_name TEXT NOT NULL,  -- References affected node
+    state transaction_state NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     metadata JSONB
 );
 
--- Change log (unchanged)
-CREATE TABLE IF NOT EXISTS change_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transaction_id UUID REFERENCES transactions(id),
-    table_name TEXT NOT NULL,
-    record_id TEXT NOT NULL,
-    operation operation_type NOT NULL,
-    old_data JSONB,
-    new_data JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT NOT NULL
-);
 
 -- Modified Nodes Table
 CREATE TABLE IF NOT EXISTS nodes (
@@ -143,18 +158,6 @@ CREATE TABLE IF NOT EXISTS proxies (
         REFERENCES nodes(serial_number, version_set_id),
     FOREIGN KEY (group_name, version_set_id)
         REFERENCES groups(name, version_set_id)
-);
-
--- Version transitions (unchanged)
-CREATE TABLE IF NOT EXISTS version_transitions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    from_version_id UUID REFERENCES version_sets(id),
-    to_version_id UUID REFERENCES version_sets(id) NOT NULL,
-    status transaction_status NOT NULL DEFAULT 'pending',
-    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ,
-    created_by TEXT NOT NULL,
-    metadata JSONB
 );
 
 -- Indexes

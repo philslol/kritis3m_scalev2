@@ -10,8 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var outputFormat string
-
 func init() {
 	log.Debug().Msg("Registering version set commands")
 	rootCmd.AddCommand(versionSetCli)

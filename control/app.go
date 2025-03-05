@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/philslol/kritis3m_scalev2/control/db"
 	"github.com/philslol/kritis3m_scalev2/control/service/southbound"
@@ -40,7 +41,7 @@ func (scale *Kritis3m_Scale) Serve() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	database, err := db.NewStateManager()
+	database, err := db.NewStateManager(ctx)
 	if err != nil {
 		log.Err(err)
 	}
@@ -102,4 +103,17 @@ func (scale *Kritis3m_Scale) Serve() {
 
 	cancel() // Ensure all goroutines stop
 	log.Info().Msg("Shutdown complete")
+}
+
+// small helper, should not be used in production, but is useful for testing
+// no grpc middleware required to execute db operations
+func (scale *Kritis3m_Scale) GetRawDB(timeout time.Duration) (*db.StateManager, context.Context, context.CancelFunc, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+
+	database, err := db.NewStateManager(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to get raw database")
+		return nil, ctx, cancel, err
+	}
+	return database, ctx, cancel, nil
 }

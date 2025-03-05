@@ -59,9 +59,6 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 			return nil, err
 		}
 
-		if resp.UpdateState == v1.UpdateState_APPLIED {
-			break
-		}
 	}
 
 	return &v1.ActivateResponse{
