@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *StateManager) UpdateWhere(ctx context.Context, table string, updates map[string]interface{}, where string) error {
+func (s *StateManager) UpdateWhere(ctx context.Context, table string, updates map[string]any, where string) error {
 	fields := []string{}
-	values := []interface{}{}
+	values := []any{}
 	paramCount := 1
 
 	for field, value := range updates {
@@ -31,9 +31,9 @@ func (s *StateManager) UpdateWhere(ctx context.Context, table string, updates ma
 	})
 }
 
-func (s *StateManager) Update(ctx context.Context, table string, updates map[string]interface{}, where_key string, where_value interface{}) error {
+func (s *StateManager) Update(ctx context.Context, table string, updates map[string]any, where_key string, where_value any) error {
 	fields := []string{}
-	values := []interface{}{}
+	values := []any{}
 	paramCount := 1
 
 	for field, value := range updates {
@@ -56,7 +56,7 @@ func (s *StateManager) Update(ctx context.Context, table string, updates map[str
 
 func (s *StateManager) Delete(ctx context.Context, table string, where_key string, where_value string) error {
 	query := "DELETE FROM " + table + " WHERE " + where_key + " = $1"
-	where_values := []interface{}{where_value}
+	where_values := []any{where_value}
 
 	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, where_values...)

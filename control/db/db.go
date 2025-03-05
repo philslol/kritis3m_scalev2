@@ -31,15 +31,15 @@ CREATE TYPE asl_key_exchange_method AS ENUM (
 );
 
 CREATE TABLE IF NOT EXISTS version_sets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    description TEXT,
-    state version_state NOT NULL DEFAULT 'draft',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    activated_at TIMESTAMPTZ,
-    disabled_at TIMESTAMPTZ,
-    created_by TEXT NOT NULL,
-    metadata JSONB
+                                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                            name TEXT NOT NULL,
+                                            description TEXT,
+                                            state version_state NOT NULL DEFAULT 'draft',
+                                            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                            activated_at TIMESTAMPTZ,
+                                            disabled_at TIMESTAMPTZ,
+                                            created_by TEXT NOT NULL,
+                                            metadata JSONB
 );
 
 -- Version transitions (unchanged)
@@ -49,19 +49,17 @@ CREATE TABLE IF NOT EXISTS version_transitions (
                                                    to_version_id UUID REFERENCES version_sets(id) NOT NULL,
                                                    status version_transition_status NOT NULL DEFAULT 'pending',
                                                    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                                   transaction_id INT REFERENCES transactions(id),
                                                    completed_at TIMESTAMPTZ,
                                                    created_by TEXT NOT NULL,
                                                    metadata JSONB
 );
 
 
-
 -- Modified Transactions Table
 CREATE TABLE IF NOT EXISTS transactions (
     id SERIAL PRIMARY KEY,
     type transaction_type NOT NULL,
-    version_set_id UUID REFERENCES version_sets(id),
-    version_transition_id INT REFERENCES version_transitions(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ,
     description TEXT
@@ -71,11 +69,17 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE TABLE IF NOT EXISTS transaction_log (
     id SERIAL PRIMARY KEY,
     transaction_id INT REFERENCES transactions(id) ON DELETE CASCADE,
-    node_name TEXT NOT NULL,  -- References affected node
+    node_serial TEXT NOT NULL,  -- References affected node
+    version_set_id uuid NOT NULL ,
     state transaction_state NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    metadata JSONB
+    metadata JSONB,
+
+    FOREIGN KEY (node_serial, version_set_id)
+        REFERENCES nodes(serial_number, version_set_id)
+
 );
+
 
 
 -- Modified Nodes Table

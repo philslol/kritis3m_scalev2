@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/jackc/pgx/v5"
@@ -129,6 +130,60 @@ func (s *StateManager) ActivateVersionSet(ctx context.Context, id uuid.UUID) err
 
 /*----------------------------- VERSION TRANSITION -----------------------------------------*/
 
+// creates a new transaction and returns the id
+func (s *StateManager) CreateTransaction(ctx context.Context, description string, transaction_type types.TransactionType) (int, error) {
+	var tx_id int
+	var err error
+
+	query := `
+		INSERT INTO transactions (type, description)
+		VALUES ($1, $2)
+		RETURNING id
+		`
+	err = s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, transaction_type, description).Scan(&tx_id)
+	})
+
+	if err != nil {
+		log.Err(err).Msg("failed to create type transaction")
+		return 0, err
+	}
+
+	return tx_id, nil
+}
+
+func (s *StateManager) UpdateTransaction(ctx context.Context, tx_id int, completed_at *time.Time, state *types.TransactionState, description *string) error {
+	wherestring := "WHERE id = $1"
+	values := make(map[string]any)
+	if completed_at != nil {
+		values["completed_at"] = completed_at
+	}
+	if state != nil {
+		values["state"] = state
+	}
+	if description != nil {
+		values["description"] = description
+	}
+
+	return s.UpdateWhere(ctx, "transactions", values, wherestring)
+}
+
+func (s *StateManager) LogNodeTransaction(ctx context.Context, transaction *types.NodeTransactionLog) (int, error) {
+	var id int
+	query := `
+		INSERT INTO transaction_log (transaction_id, node_serial, version_set_id, state, timestamp, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id`
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, query, transaction.TransactionID, transaction.NodeSerial, transaction.VersionSetID, transaction.State, transaction.Timestamp, transaction.Metadata).Scan(&id)
+	})
+	if err != nil {
+		log.Err(err).Msg("failed to log transaction")
+		return 0, err
+	}
+	return id, nil
+}
+
 func (s *StateManager) CreateVersionTransition(ctx context.Context, transition *types.VersionTransition) error {
 	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
@@ -212,3 +267,23 @@ func (s *StateManager) GetVersionTransitionByID(ctx context.Context, id string) 
 // 		return nil
 // 	})
 // }
+
+// UpdateVersionTransitionStatus updates the status of a version transition
+func (s *StateManager) UpdateVersionTransitionStatus(ctx context.Context, transactionId int, status string) error {
+	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		query := `
+			UPDATE version_transitions 
+			SET status = $1, completed_at = CASE WHEN $1 IN ('active', 'failed') THEN NOW() ELSE NULL END
+			WHERE transaction_id = $2`
+
+		result, err := tx.Exec(ctx, query, status, transactionId)
+		if err != nil {
+			return fmt.Errorf("failed to update version transition status: %w", err)
+		}
+
+		if result.RowsAffected() == 0 {
+			return fmt.Errorf("no version transition found for transaction %d", transactionId)
+		}
+		return nil
+	})
+}

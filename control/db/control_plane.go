@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
@@ -160,4 +161,324 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 		return nil, nil
 	}
 	return node, nil
+}
+
+// GetVersionFleetUpdate retrieves all nodes for a specific version set
+/* MUST BE TESTED */
+func (s *StateManager) GetVersionFleetUpdate(ctx context.Context, versionSetId string) (*v1.FleetUpdate, error) {
+	var nodes []*v1.NodeUpdateItem
+
+	// Get all nodes for this version set
+	query := `
+		SELECT DISTINCT serial_number 
+		FROM nodes 
+		WHERE version_set_id = $1::uuid
+		AND disabled_at IS NULL`
+
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, versionSetId)
+		if err != nil {
+			return fmt.Errorf("failed to query nodes: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var serialNumber string
+			if err := rows.Scan(&serialNumber); err != nil {
+				return fmt.Errorf("failed to scan node: %w", err)
+			}
+
+			// Get full node update for each node
+			nodeUpdate, err := s.NodeUpdate(serialNumber, versionSetId, ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get node update for %s: %w", serialNumber, err)
+			}
+			if nodeUpdate != nil {
+				nodes = append(nodes, nodeUpdate)
+			}
+		}
+		return rows.Err()
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get version fleet update: %w", err)
+	}
+
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	return &v1.FleetUpdate{
+		NodeUpdateItems: nodes,
+	}, nil
+}
+
+// GetGroupFleetUpdate retrieves all nodes for a specific group in a version set
+/* MUST BE TESTED */
+func (s *StateManager) GetGroupFleetUpdate(ctx context.Context, groupName string, versionSetId string) (*v1.FleetUpdate, error) {
+	var nodes []*v1.NodeUpdateItem
+
+	// Get all nodes in this group
+	query := `
+		SELECT DISTINCT p.node_serial
+		FROM proxies p
+		JOIN groups g ON p.group_name = g.name AND p.version_set_id = g.version_set_id
+		WHERE p.group_name = $1 
+		AND p.version_set_id = $2::uuid
+		AND p.disabled_at IS NULL`
+
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, groupName, versionSetId)
+		if err != nil {
+			return fmt.Errorf("failed to query nodes: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var serialNumber string
+			if err := rows.Scan(&serialNumber); err != nil {
+				return fmt.Errorf("failed to scan node: %w", err)
+			}
+
+			// Get full node update for each node
+			nodeUpdate, err := s.NodeUpdate(serialNumber, versionSetId, ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get node update for %s: %w", serialNumber, err)
+			}
+			if nodeUpdate != nil {
+				nodes = append(nodes, nodeUpdate)
+			}
+		}
+		return rows.Err()
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group fleet update: %w", err)
+	}
+
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	return &v1.FleetUpdate{
+		NodeUpdateItems: nodes,
+	}, nil
+}
+
+// GetFleetUpdateOptimized retrieves all nodes and their configurations in a single query
+// If groupName is empty, it performs a version update, otherwise a group update
+/* MUST BE TESTED */
+func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId string, groupName string) (*v1.FleetUpdate, error) {
+	var query string
+	var args []any
+
+	if groupName == "" {
+		// Version update query
+		query = `
+		WITH target_nodes AS (
+			SELECT DISTINCT serial_number
+			FROM nodes
+			WHERE version_set_id = $1::uuid
+			AND disabled_at IS NULL
+		)
+		SELECT
+			-- Node information
+			n.serial_number,
+			n.network_index,
+			n.locality,
+			n.version_set_id::text,
+			-- Group information
+			g.name AS group_name,
+			g.log_level AS group_log_level,
+			-- Endpoint Config
+			ec1.name AS endpoint_config_name,
+			ec1.mutual_auth AS endpoint_mutual_auth,
+			ec1.no_encryption AS endpoint_no_encryption,
+			ec1.asl_key_exchange_method AS endpoint_kex_method,
+			ec1.cipher AS endpoint_cipher,
+			-- Legacy Config
+			ec2.name AS legacy_config_name,
+			ec2.mutual_auth AS legacy_mutual_auth,
+			ec2.no_encryption AS legacy_no_encryption,
+			ec2.asl_key_exchange_method AS legacy_kex_method,
+			ec2.cipher AS legacy_cipher,
+			-- Proxy information
+			p.name AS proxy_name,
+			p.state AS proxy_state,
+			p.proxy_type,
+			p.server_endpoint_addr,
+			p.client_endpoint_addr
+		FROM target_nodes tn
+		JOIN nodes n ON n.serial_number = tn.serial_number
+		LEFT JOIN proxies p ON p.node_serial = n.serial_number AND p.version_set_id = n.version_set_id
+		LEFT JOIN groups g ON p.group_name = g.name AND g.version_set_id = n.version_set_id
+		LEFT JOIN endpoint_configs ec1 ON g.endpoint_config_name = ec1.name AND g.version_set_id = ec1.version_set_id
+		LEFT JOIN endpoint_configs ec2 ON g.legacy_config_name = ec2.name AND g.version_set_id = ec2.version_set_id
+		WHERE n.version_set_id = $1::uuid
+		ORDER BY n.serial_number, g.name, p.name`
+		args = []any{versionSetId}
+	} else {
+		// Group update query
+		query = `
+		WITH target_nodes AS (
+			SELECT DISTINCT p.node_serial
+			FROM proxies p
+			WHERE p.group_name = $1 
+			AND p.version_set_id = $2::uuid
+			AND p.disabled_at IS NULL
+		)
+		SELECT
+			-- Node information
+			n.serial_number,
+			n.network_index,
+			n.locality,
+			n.version_set_id::text,
+			-- Group information
+			g.name AS group_name,
+			g.log_level AS group_log_level,
+			-- Endpoint Config
+			ec1.name AS endpoint_config_name,
+			ec1.mutual_auth AS endpoint_mutual_auth,
+			ec1.no_encryption AS endpoint_no_encryption,
+			ec1.asl_key_exchange_method AS endpoint_kex_method,
+			ec1.cipher AS endpoint_cipher,
+			-- Legacy Config
+			ec2.name AS legacy_config_name,
+			ec2.mutual_auth AS legacy_mutual_auth,
+			ec2.no_encryption AS legacy_no_encryption,
+			ec2.asl_key_exchange_method AS legacy_kex_method,
+			ec2.cipher AS legacy_cipher,
+			-- Proxy information
+			p.name AS proxy_name,
+			p.state AS proxy_state,
+			p.proxy_type,
+			p.server_endpoint_addr,
+			p.client_endpoint_addr
+		FROM target_nodes tn
+		JOIN nodes n ON n.serial_number = tn.node_serial
+		LEFT JOIN proxies p ON p.node_serial = n.serial_number AND p.version_set_id = n.version_set_id
+		LEFT JOIN groups g ON p.group_name = g.name AND g.version_set_id = n.version_set_id
+		LEFT JOIN endpoint_configs ec1 ON g.endpoint_config_name = ec1.name AND g.version_set_id = ec1.version_set_id
+		LEFT JOIN endpoint_configs ec2 ON g.legacy_config_name = ec2.name AND g.version_set_id = ec2.version_set_id
+		WHERE n.version_set_id = $2::uuid
+		ORDER BY n.serial_number, g.name, p.name`
+		args = []any{groupName, versionSetId}
+	}
+
+	nodeMap := make(map[string]*v1.NodeUpdateItem)
+	var nodes []*v1.NodeUpdateItem
+
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("failed to query nodes: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var (
+				serialNumber   string
+				networkIndex   int32
+				locality       string
+				versionSetId   string
+				groupName      string
+				groupLogLevel  int32
+				endpointConfig types.EndpointConfig
+				legacyConfig   types.EndpointConfig
+				proxyName      string
+				proxyState     bool
+				proxyType      int32
+				serverEndpoint string
+				clientEndpoint string
+			)
+
+			err := rows.Scan(
+				&serialNumber, &networkIndex, &locality, &versionSetId,
+				&groupName, &groupLogLevel,
+				&endpointConfig.Name, &endpointConfig.MutualAuth, &endpointConfig.NoEncryption,
+				&endpointConfig.ASLKeyExchangeMethod, &endpointConfig.Cipher,
+				&legacyConfig.Name, &legacyConfig.MutualAuth, &legacyConfig.NoEncryption,
+				&legacyConfig.ASLKeyExchangeMethod, &legacyConfig.Cipher,
+				&proxyName, &proxyState, &proxyType, &serverEndpoint, &clientEndpoint,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to scan row: %w", err)
+			}
+
+			// Get or create node
+			node, exists := nodeMap[serialNumber]
+			if !exists {
+				node = &v1.NodeUpdateItem{
+					SerialNumber:     serialNumber,
+					NetworkIndex:     networkIndex,
+					Locality:         locality,
+					VersionSetId:     versionSetId,
+					GroupProxyUpdate: []*v1.GroupProxyUpdate{},
+				}
+				nodeMap[serialNumber] = node
+				nodes = append(nodes, node)
+			}
+
+			// Skip if no group info
+			if groupName == "" {
+				continue
+			}
+
+			// Find or create group update
+			var groupUpdate *v1.GroupProxyUpdate
+			for _, g := range node.GroupProxyUpdate {
+				if g.GroupName == groupName {
+					groupUpdate = g
+					break
+				}
+			}
+			if groupUpdate == nil {
+				groupUpdate = &v1.GroupProxyUpdate{
+					GroupName:     groupName,
+					GroupLogLevel: groupLogLevel,
+					EndpointConfig: &v1.EndpointConfig{
+						Name:                 endpointConfig.Name,
+						MutualAuth:           endpointConfig.MutualAuth,
+						NoEncryption:         endpointConfig.NoEncryption,
+						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[endpointConfig.ASLKeyExchangeMethod]),
+						Cipher:               endpointConfig.Cipher,
+					},
+					LegacyConfig: &v1.EndpointConfig{
+						Name:                 legacyConfig.Name,
+						MutualAuth:           legacyConfig.MutualAuth,
+						NoEncryption:         legacyConfig.NoEncryption,
+						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[legacyConfig.ASLKeyExchangeMethod]),
+						Cipher:               legacyConfig.Cipher,
+					},
+					Proxies: []*v1.UpdateProxy{},
+				}
+				node.GroupProxyUpdate = append(node.GroupProxyUpdate, groupUpdate)
+			}
+
+			// Add proxy if it exists
+			if proxyName != "" {
+				proxy := &v1.UpdateProxy{
+					Name:               proxyName,
+					ServerEndpointAddr: serverEndpoint,
+					ClientEndpointAddr: clientEndpoint,
+					ProxyType:          v1.ProxyType(proxyType),
+				}
+				groupUpdate.Proxies = append(groupUpdate.Proxies, proxy)
+			}
+		}
+
+		return rows.Err()
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fleet update: %w", err)
+	}
+
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	return &v1.FleetUpdate{
+		NodeUpdateItems: nodes,
+	}, nil
 }

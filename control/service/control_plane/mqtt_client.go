@@ -144,7 +144,7 @@ var reconHandler mqtt_paho.ReconnectHandler = func(client mqtt_paho.Client, opts
 
 /********************************** grpc service for control_plane *******************************************/
 func (fac *MqttFactory) UpdateFleet(req *v1.FleetUpdate, stream grpc.ServerStreamingServer[v1.UpdateResponse]) error {
-	fac.logger.Info().Msgf("Starting fleet update for %d nodes, tx_id: %s", len(req.NodeUpdateItems), req.Transaction.TxId)
+	log.Info().Msgf("Starting fleet update for %d nodes, tx_id: %d", len(req.NodeUpdateItems), req.Transaction.TxId)
 
 	c, err := fac.GetClient("update_fleet")
 	if err != nil {
@@ -430,7 +430,7 @@ func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[v
 type nodeUpdateMessage struct {
 	SerialNumber string
 	State        v1.UpdateState
-	TxId         string
+	TxId         int32
 	Timestamp    time.Time
 	Error        string
 }
@@ -461,10 +461,14 @@ func processFleetUpdate(
 		return
 	}
 
-	// Initial state notification
-	if err := sendUpdateResponse(stream, v1.UpdateState_PUBLISHED, req.Transaction.TxId); err != nil {
-		doneChan <- fmt.Errorf("failed to send initial state: %w", err)
-		return
+	//TODO: Sending single update responses for each node is rather slow, in the future, a report groups the update states of all nodes
+	// and sends them in a single message.
+
+	for _, node := range req.NodeUpdateItems {
+		if err := sendUpdateResponse(stream, v1.UpdateState_PUBLISHED, node.SerialNumber, req.Transaction.TxId); err != nil {
+			doneChan <- fmt.Errorf("failed to send initial state: %w", err)
+			return
+		}
 	}
 
 	// Process node updates
@@ -570,7 +574,7 @@ func updateNodeStatus(
 	status.nodes[msg.SerialNumber] = msg.State
 
 	// Send individual node update
-	if err := sendUpdateResponse(stream, msg.State, req.Transaction.TxId); err != nil {
+	if err := sendUpdateResponse(stream, msg.State, msg.SerialNumber, req.Transaction.TxId); err != nil {
 		return v1.UpdateState_UNKNOWN, fmt.Errorf("failed to send update response: %w", err)
 	}
 
@@ -650,11 +654,13 @@ func triggerApply(
 func sendUpdateResponse(
 	stream grpc.ServerStreamingServer[v1.UpdateResponse],
 	state v1.UpdateState,
-	txId string,
+	nodeId string,
+	txId int32,
 ) error {
 	return stream.Send(&v1.UpdateResponse{
 		UpdateState: state,
 		Timestamp:   timestamppb.New(time.Now()),
 		TxId:        txId,
+		NodeId:      nodeId,
 	})
 }

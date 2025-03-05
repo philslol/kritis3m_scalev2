@@ -147,7 +147,6 @@ type EndpointConfig struct {
 type Transaction struct {
 	ID                  int             `json:"id"`
 	Type                TransactionType `json:"type"`
-	VersionSetID        *uuid.UUID      `json:"version_set_id,omitempty"`
 	VersionTransitionID *int            `json:"version_transition_id,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 	CompletedAt         *time.Time      `json:"completed_at,omitempty"`
@@ -155,10 +154,11 @@ type Transaction struct {
 }
 
 // TransactionLog represents the transaction_log table.
-type TransactionLog struct {
+type NodeTransactionLog struct {
 	ID            int              `json:"id"`
 	TransactionID int              `json:"transaction_id"`
-	NodeName      string           `json:"node_name"`
+	NodeSerial    string           `json:"node_serial"`
+	VersionSetID  uuid.UUID        `json:"version_set_id"`
 	State         TransactionState `json:"state"`
 	Timestamp     time.Time        `json:"timestamp"`
 	Metadata      []byte           `json:"metadata"`
@@ -169,6 +169,7 @@ type VersionTransition struct {
 	ID                    int                     `json:"id"`
 	FromVersionTransition *int                    `json:"from_version_transition"`
 	ToVersionSetID        uuid.UUID               `json:"to_version_id"`
+	TransactionID         int                     `json:"transaction_id"`
 	Status                VersionTransitionStatus `json:"status"`
 	StartedAt             time.Time               `json:"started_at"`
 	CompletedAt           *time.Time              `json:"completed_at"`
