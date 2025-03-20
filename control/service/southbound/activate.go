@@ -16,10 +16,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (sb *SouthboundService) getControlPlaneClient() (v1.ControlPlaneClient, *grpc.ClientConn, error) {
+func getControlPlaneClient(addr string) (v1.ControlPlaneClient, *grpc.ClientConn, error) {
 	grpcOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
-	conn, err := grpc.NewClient(sb.addr, grpcOptions...)
+	conn, err := grpc.NewClient(addr, grpcOptions...)
 	if err != nil {
 		log.Error().Err(err).Msg("Could not connect to control plane")
 		return nil, nil, status.Error(codes.Internal, "Failed to connect to control plane")
@@ -95,7 +95,7 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 	}
 
 	// Get client with error handling
-	client, conn, err := sb.getControlPlaneClient()
+	client, conn, err := getControlPlaneClient(sb.addr)
 	if err != nil {
 		if logErr := sb.logTransactionFailure(ctx, tx, "fleet", uuid_version_set, "Failed to connect to control plane"); logErr != nil {
 			log.Error().Err(logErr).Msg("Failed to log transaction failure")
@@ -160,6 +160,10 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 				// Handle terminal states
 				if resp.UpdateState == v1.UpdateState_ERROR || resp.UpdateState == v1.UpdateState_NODE_APPLIED {
 					if resp.UpdateState == v1.UpdateState_ERROR {
+						completed_at := time.Now()
+						error_state := types.TransactionStateError
+						error_description := fmt.Sprintf("Failed to apply update: %v", err)
+						sb.db.UpdateTransaction(ctx, int(tx), &completed_at, &error_state, &error_description)
 						retcode = -1
 						// Update version transition status if this was a version update
 						if transactionType == types.TransactionTypeVersionUpdate {
@@ -169,6 +173,10 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 							}
 						}
 					} else if resp.UpdateState == v1.UpdateState_NODE_APPLIED {
+						completed_at := time.Now()
+						applied_state := types.TransactionStateApplied
+						applied_description := "Update applied successfully"
+						sb.db.UpdateTransaction(ctx, int(tx), &completed_at, &applied_state, &applied_description)
 						retcode = 0
 						// Update version transition status if this was a version update
 						if transactionType == types.TransactionTypeVersionUpdate {
@@ -195,7 +203,6 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 			}
 		}
 	}()
-
 	// Wait for completion or timeout
 	select {
 	case <-ctx.Done():
@@ -250,7 +257,7 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 	}
 
 	// Get client with error handling
-	client, conn, err := sb.getControlPlaneClient()
+	client, conn, err := getControlPlaneClient(sb.addr)
 	if err != nil {
 		// Log transaction failure before returning
 		if logErr := sb.logTransactionFailure(ctx, tx, req.SerialNumber, uuid_version_set, "Failed to connect to control plane"); logErr != nil {
@@ -304,7 +311,7 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 				}
 
 				// Log transaction
-				_, err = sb.db.LogTransaction(ctx, &types.TransactionLog{
+				_, err = sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
 					TransactionID: int(tx),
 					NodeSerial:    req.SerialNumber,
 					VersionSetID:  uuid_version_set,
@@ -362,7 +369,7 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 
 // Helper function to log transaction failures
 func (sb *SouthboundService) logTransactionFailure(ctx context.Context, tx int, serialNumber string, versionSetID uuid.UUID, errorMsg string) error {
-	_, err := sb.db.LogTransaction(ctx, &types.NodeTransactionLog{
+	_, err := sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
 		TransactionID: tx,
 		NodeSerial:    serialNumber,
 		VersionSetID:  versionSetID,

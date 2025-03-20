@@ -21,7 +21,8 @@ const (
 
 // Config contains the initial Headscale configuration.
 type Config struct {
-	Log LogConfig
+	Log     LogConfig
+	Logfile string
 
 	Database DatabaseConfig
 
@@ -32,6 +33,7 @@ type Config struct {
 
 	Broker       BrokerConfig
 	ControlPlane ControlPlaneConfig
+	ESTServer    ESTServerConfig
 
 	CliConfig CliConfig
 }
@@ -73,6 +75,48 @@ type DatabaseConfig struct {
 type CliConfig struct {
 	Timeout    time.Duration
 	ServerAddr string
+}
+
+// ESTServerConfig holds the configuration for the EST server
+type ESTServerConfig struct {
+	CA             CAConfig
+	TLS            TLSConfig
+	AllowedHosts   []string
+	HealthCheckPwd string
+	RateLimit      int
+	Timeout        int
+	Log            LogConfig
+}
+
+// CAConfig holds the CA configuration
+type CAConfig struct {
+	Certificates string
+	PrivateKey   string
+	Validity     int
+	PKCS11Module PKCS11Module
+}
+
+// TLSConfig holds the TLS configuration
+type TLSConfig struct {
+	ListenAddress string
+	Certificates  string
+	PrivateKey    string
+	ClientCAs     []string
+	ASLEndpoint   ASLEndpointConfig
+	PKCS11Module  PKCS11Module
+}
+
+// ASLEndpointConfig holds ASL-specific TLS configuration
+type ASLEndpointConfig struct {
+	MutualAuthentication bool
+	Ciphersuites         []string
+	KeylogFile           string
+}
+
+// PKCS11Module holds PKCS11 module configuration
+type PKCS11Module struct {
+	Path string
+	Pin  string
 }
 
 func toASLKeyExchangeMethod(s string) (asl.ASLKeyExchangeMethod, error) {
@@ -125,7 +169,7 @@ func parse_Log(basepath string) LogConfig {
 func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 	var kex asl.ASLKeyExchangeMethod
 	var pkcs11 asl.PKCS11ASL
-	var root asl.RootCertificate
+	var root asl.RootCertificates
 	var device asl.DeviceCertificateChain
 	var private asl.PrivateKey
 
@@ -141,9 +185,9 @@ func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 	// Get keys
 	private.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "private_key"))
 	device.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "device_cert"))
-	root.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "root_cert"))
+	root.Paths = []string{viper.GetString(fmt.Sprintf("%s.%s", basepath, "root_cert"))}
 
-	if root.Path == "" || device.Path == "" || private.Path == "" {
+	if root.Paths[0] == "" || device.Path == "" || private.Path == "" {
 		err := fmt.Errorf("either device or root or private key is empty")
 		log.Err(err)
 		return nil, err
@@ -152,10 +196,9 @@ func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 	var ep_config asl.EndpointConfig = asl.EndpointConfig{
 		KeylogFile:             viper.GetString(fmt.Sprintf("%s.%s", basepath, "key_log_file")),
 		MutualAuthentication:   viper.GetBool(fmt.Sprintf("%s.%s", basepath, "mutual_authentication")),
-		NoEncryption:           viper.GetBool(fmt.Sprintf("%s.%s", basepath, "no_encryption")),
 		ASLKeyExchangeMethod:   kex,
 		PKCS11:                 pkcs11,
-		RootCertificate:        root,
+		RootCertificates:       root,
 		DeviceCertificateChain: device,
 		PrivateKey:             private,
 	}
@@ -266,6 +309,51 @@ func GetControlPlaneConfig() (*ControlPlaneConfig, error) {
 	return &control_plane_config, nil
 }
 
+func GetESTServerConfig() (*ESTServerConfig, error) {
+	var estConfig ESTServerConfig
+
+	// Parse CA config
+	estConfig.CA.Certificates = viper.GetString("est_server_config.ca.certificates")
+	estConfig.CA.PrivateKey = viper.GetString("est_server_config.ca.private_key")
+	estConfig.CA.Validity = viper.GetInt("est_server_config.ca.validity")
+	estConfig.CA.PKCS11Module.Path = viper.GetString("est_server_config.ca.pkcs11_module.path")
+	estConfig.CA.PKCS11Module.Pin = viper.GetString("est_server_config.ca.pkcs11_module.pin")
+
+	// Parse TLS config
+	estConfig.TLS.ListenAddress = viper.GetString("est_server_config.tls.listen_address")
+	estConfig.TLS.Certificates = viper.GetString("est_server_config.tls.certificates")
+	estConfig.TLS.PrivateKey = viper.GetString("est_server_config.tls.private_key")
+	estConfig.TLS.ClientCAs = viper.GetStringSlice("est_server_config.tls.client_cas")
+	estConfig.TLS.ASLEndpoint.MutualAuthentication = viper.GetBool("est_server_config.tls.asl_endpoint.mutual_authentication")
+	estConfig.TLS.ASLEndpoint.Ciphersuites = viper.GetStringSlice("est_server_config.tls.asl_endpoint.ciphersuites")
+	estConfig.TLS.ASLEndpoint.KeylogFile = viper.GetString("est_server_config.tls.asl_endpoint.keylog_file")
+	estConfig.TLS.PKCS11Module.Path = viper.GetString("est_server_config.tls.pkcs11_module.path")
+	estConfig.TLS.PKCS11Module.Pin = viper.GetString("est_server_config.tls.pkcs11_module.pin")
+
+	// Parse general EST server config
+	estConfig.AllowedHosts = viper.GetStringSlice("est_server_config.allowed_hosts")
+	estConfig.HealthCheckPwd = viper.GetString("est_server_config.healthcheck_password")
+	estConfig.RateLimit = viper.GetInt("est_server_config.rate_limit")
+	estConfig.Timeout = viper.GetInt("est_server_config.timeout")
+	estConfig.Log = parse_Log("est_server_config.log")
+
+	// Check required fields
+	if estConfig.TLS.ListenAddress == "" {
+		return nil, fmt.Errorf("no listen address specified for EST server")
+	}
+	if estConfig.CA.Certificates == "" || estConfig.CA.PrivateKey == "" {
+		return nil, fmt.Errorf("CA certificates or private key missing in EST server configuration")
+	}
+	if estConfig.TLS.Certificates == "" || estConfig.TLS.PrivateKey == "" {
+		return nil, fmt.Errorf("TLS certificates or private key missing in EST server configuration")
+	}
+	if len(estConfig.TLS.ClientCAs) == 0 {
+		return nil, fmt.Errorf("no client CAs provided in EST server configuration")
+	}
+
+	return &estConfig, nil
+}
+
 func GetKritis3mScaleConfig() (*Config, error) {
 	ctrl_plane_cfg, err := GetControlPlaneConfig()
 	if err != nil {
@@ -279,12 +367,20 @@ func GetKritis3mScaleConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	estServer, err := GetESTServerConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
+		Logfile:      viper.GetString("log_file"),
 		ACL:          GetACLConfig(),
 		ASLConfig:    GetASLConfig(),
 		Database:     *database_config,
 		Broker:       *broker,
 		ControlPlane: *ctrl_plane_cfg,
+		ESTServer:    *estServer,
 		Log:          parse_Log(""),
 		CliConfig:    GetCliConfig(),
 	}, nil

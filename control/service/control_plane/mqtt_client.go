@@ -370,11 +370,16 @@ func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer
 	}
 	defer c.cleanup()
 
-	topic := "hello"
+	topic := "+/control/hello"
 	messageChan := make(chan string)
 	token := c.client.Subscribe(topic, 0, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
 		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-		messageChan <- string(msg.Payload())
+		// Extract serial number from topic (first element)
+		parts := strings.Split(msg.Topic(), "/")
+		if len(parts) > 0 {
+			serialNumber := parts[0]
+			messageChan <- serialNumber
+		}
 	})
 	c.subs = append(c.subs, topic)
 	token.Wait()
@@ -399,6 +404,12 @@ func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[v
 		return status.Errorf(codes.Internal, "failed to get client")
 	}
 	defer c.cleanup()
+	type logMessage struct {
+		Message      string `json:"message,omitempty"`
+		Level        int32  `json:"level,omitempty"`
+		Module       string `json:"module,omitempty"`
+		SerialNumber string `json:"serial_number,omitempty"`
+	}
 
 	topic := "log"
 	messageChan := make(chan string, 3)
@@ -411,8 +422,17 @@ func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[v
 	token.Wait()
 	go func() {
 		for message := range messageChan {
-			err := stream.Send(&v1.LogResponse{
-				Message: message,
+			var logMessage logMessage
+			err := json.Unmarshal([]byte(message), &logMessage)
+			if err != nil {
+				log.Err(err).Msg("error unmarshalling log message")
+				continue
+			}
+			err = stream.Send(&v1.LogResponse{
+				Message:      logMessage.Message,
+				Level:        &logMessage.Level,
+				Module:       &logMessage.Module,
+				SerialNumber: logMessage.SerialNumber,
 			})
 			if err != nil {
 				return

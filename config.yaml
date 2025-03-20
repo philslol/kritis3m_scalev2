@@ -3,6 +3,7 @@
 
 cli_timeout_s: 100 
 grpc_listen_addr: 127.0.0.1:50443
+log_file: ./kritis3m_scale.log
 
 database:
   postgres:
@@ -22,32 +23,64 @@ asl_config:
 
 broker_config:
   address: ":8883"
-  tcp_only: true
+  tcp_only: false 
   log:
     format: text
     log_level: 1
   endpoint_config:
-    private_key: "./certs/privateKey.pem"
-    device_cert: "./certs/chain.pem" #device certificate chain
-    root_cert: "./certs/root.pem"
+    private_key: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/privateKey.pem"
+    device_cert: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/chain.pem" #device certificate chain
+    root_cert: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/root.pem"
     mutual_authentication: true
     no_encryption: false
     key_exchange_method: "KEX_DEFAULT"
     key_log_file: "./tmp/keylog.txt"
 
 control_plane_config:
-  server_address: ":8080"
-  tcp_only: true
+  server_address: ":8883"
+  tcp_only: false 
   log:
     format: text
     log_level: 1
   endpoint_config:
-    private_key: "./certs/privateKey.pem"
-    device_cert: "./certs/chain.pem" #device certificate chain
-    root_cert: "./certs/root.pem"
+    private_key: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/privateKey.pem"
+    device_cert: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/chain.pem" #device certificate chain
+    root_cert: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/root.pem"
     mutual_authentication: true
     no_encryption: false
     key_exchange_method: "KEX_DEFAULT"
     key_log_file: "./tmp/keylog.txt"
+
+est_server_config:
+  ca:
+    certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/ca_chain.pem"
+    private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem" 
+    validity: 365
+    pkcs11_module:
+      path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
+      pin: ""
+  tls:
+    listen_address: ":8443"
+    certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/chain.pem"
+    private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/privateKey.pem"
+    client_cas:
+      - "/home/philipp/development/kritis3m_workspace/certificates/pki/root/cert.pem"
+    asl_endpoint:
+      mutual_authentication: true
+      ciphersuites:
+        - "TLS13-AES256-GCM-SHA384"
+        - "TLS13-CHACHA20-POLY1305-SHA256"
+      keylog_file: "/home/philipp/development/kritis3m_workspace/measurements/keylog.log"
+    pkcs11_module:
+      path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
+      pin: ""
+  allowed_hosts:
+    - "*"
+  healthcheck_password: "xyzzy"
+  rate_limit: 150
+  timeout: 30
+  log:
+    format: text
+    log_level: 3
 
 acl_policy_path: ./startup.json

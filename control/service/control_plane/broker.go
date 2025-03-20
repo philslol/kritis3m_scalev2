@@ -6,6 +6,7 @@ import (
 	"os"
 
 	mqtt "github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker"
+	auth "github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker/hooks/auth"
 	mqtt_listeners "github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker/listeners"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog"
@@ -21,11 +22,17 @@ type Broker struct {
 }
 
 func NewBroker(broker_cfg types.BrokerConfig) *Broker {
-	options := &mqtt.Options{}
+	capabilities := mqtt.NewDefaultServerCapabilities()
+	options := &mqtt.Options{
+		Capabilities: capabilities,
+	}
 	// options.Capabilities = mqtt.NewDefaultServerCapabilities()
 	// options.Capabilities.Compatibilities.PassiveClientDisconnect = false
-
 	server := mqtt.New(options)
+	err := server.AddHook(new(auth.AllowHook), nil)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Error adding auth hook")
+	}
 	// convert log level to slog level
 	var log_level slog.Level
 	if broker_cfg.Log.Level == zerolog.DebugLevel {

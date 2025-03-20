@@ -38,6 +38,27 @@ func (scale *Kritis3m_Scale) Serve() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Create EST server with the application context
+	estServer, err := controlplane.NewESTServer(&scale.cfg.ESTServer)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create EST server")
+	} else {
+		// Replace the EST server's context with the application context
+		estServer.SetContext(ctx)
+
+		// Start the EST server in a goroutine
+		go func() {
+			log.Info().Msg("Starting EST server")
+			if err := estServer.Serve(); err != nil {
+				log.Error().Err(err).Msg("EST server serve failed")
+				cancel() // Cancel context on EST server failure
+			}
+		}()
+
+		// Ensure server is properly shut down
+		defer estServer.Shutdown()
+	}
+
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
@@ -80,11 +101,29 @@ func (scale *Kritis3m_Scale) Serve() {
 	v1.RegisterSouthboundServer(s, sb)
 	v1.RegisterControlPlaneServer(s, control_plane)
 
-	// Start gRPC server in a goroutine
 	go func() {
 		log.Info().Msgf("Server listening at %v", lis.Addr())
 		if err := s.Serve(lis); err != nil {
 			log.Fatal().Err(err).Msg("gRPC server error")
+			cancel() // Cancel context on failure
+		}
+	}()
+	time.Sleep(1 * time.Second)
+
+	hello_service := southbound.NewHelloService(database, scale.cfg.CliConfig.ServerAddr)
+	go func() {
+		err := hello_service.Hello(ctx)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Hello service error")
+			cancel() // Cancel context on failure
+		}
+	}()
+
+	log_service := southbound.NewLogService(database, scale.cfg.CliConfig.ServerAddr, scale.cfg.Logfile)
+	go func() {
+		err := log_service.LogNodeTransaction(ctx)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Log service error")
 			cancel() // Cancel context on failure
 		}
 	}()
