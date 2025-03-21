@@ -1,8 +1,7 @@
 package db
 
 const schemaSQL = `
--- Keep existing ENUM types
-CREATE TYPE proxy_type AS ENUM ('forward', 'reverse', 'tlstls');
+CREATE TYPE proxy_type AS ENUM ('not_specifed','forward', 'reverse', 'tlstls');
 CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
 CREATE TYPE version_transition_status AS ENUM ('pending', 'active', 'failed', 'rollback');
 
@@ -30,6 +29,17 @@ CREATE TYPE asl_key_exchange_method AS ENUM (
     'ASL_KEX_HYBRID_X25519_MLKEM768'
 );
 
+
+
+-- Modified Transactions Table
+CREATE TABLE IF NOT EXISTS transactions (
+                                            id SERIAL PRIMARY KEY,
+                                            type transaction_type NOT NULL,
+                                            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                            completed_at TIMESTAMPTZ,
+                                            description TEXT
+);
+
 CREATE TABLE IF NOT EXISTS version_sets (
                                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                                             name TEXT NOT NULL,
@@ -40,6 +50,20 @@ CREATE TABLE IF NOT EXISTS version_sets (
                                             disabled_at TIMESTAMPTZ,
                                             created_by TEXT NOT NULL,
                                             metadata JSONB
+);
+
+-- Modified Nodes Table
+CREATE TABLE IF NOT EXISTS nodes (
+                                     id SERIAL UNIQUE,
+                                     serial_number TEXT NOT NULL CHECK (char_length(serial_number) <= 50),
+                                     network_index INTEGER NOT NULL,
+                                     locality TEXT,
+                                     last_seen TIMESTAMPTZ,
+                                     version_set_id UUID REFERENCES version_sets(id),
+                                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                     created_by TEXT NOT NULL,
+                                     PRIMARY KEY (serial_number, version_set_id)
 );
 
 -- Version transitions (unchanged)
@@ -56,14 +80,6 @@ CREATE TABLE IF NOT EXISTS version_transitions (
 );
 
 
--- Modified Transactions Table
-CREATE TABLE IF NOT EXISTS transactions (
-    id SERIAL PRIMARY KEY,
-    type transaction_type NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ,
-    description TEXT
-);
 
 -- Renamed Audit Log to Transaction Log and simplified structure
 CREATE TABLE IF NOT EXISTS transaction_log (
@@ -82,19 +98,6 @@ CREATE TABLE IF NOT EXISTS transaction_log (
 
 
 
--- Modified Nodes Table
-CREATE TABLE IF NOT EXISTS nodes (
-    id SERIAL UNIQUE,
-    serial_number TEXT NOT NULL CHECK (char_length(serial_number) <= 50),
-    network_index INTEGER NOT NULL,
-    locality TEXT,
-    last_seen TIMESTAMPTZ,
-    version_set_id UUID REFERENCES version_sets(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT NOT NULL,
-    PRIMARY KEY (serial_number, version_set_id)
-);
 
 -- Modified Endpoint Configurations
 CREATE TABLE IF NOT EXISTS endpoint_configs (
@@ -171,5 +174,4 @@ CREATE INDEX IF NOT EXISTS idx_proxies_version ON proxies(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_hwconfig_version ON hardware_configs(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_groups_version ON groups(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_endpoint_version ON endpoint_configs(version_set_id);
-
 `

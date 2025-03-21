@@ -34,7 +34,7 @@ func (s *StateManager) GetHwConfigPByID(ctx context.Context, id int) (*types.Har
 	config := &types.HardwareConfig{}
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-        SELECT id, node_serial, device, ip_cidr, version_set_id,
+        SELECT id, node_serial, device, ip_cidr::text, version_set_id,
                created_at, updated_at, created_by
         FROM hardware_configs WHERE id = $1`
 
@@ -55,7 +55,7 @@ func (s *StateManager) GetHwConfigbyNodeID(ctx context.Context, nodeID int) ([]*
 	configs := []*types.HardwareConfig{}
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-        SELECT id, node_serial, device, ip_cidr, version_set_id,
+        SELECT id, node_serial, device, ip_cidr::text, version_set_id,
                created_at, updated_at, created_by
         FROM hardware_configs WHERE node_id = $1`
 
@@ -90,7 +90,7 @@ func (s *StateManager) GetHwConfigBySerial(ctx context.Context, serialNumber str
 	configs := []*types.HardwareConfig{}
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-        SELECT id, node_serial, device, ip_cidr, version_set_id,
+        SELECT id, node_serial, device, ip_cidr::text, version_set_id,
                created_at, updated_at, created_by
         FROM hardware_configs WHERE version_set_id = $1 AND node_serial = $2`
 
@@ -126,7 +126,7 @@ func (s *StateManager) GetHwConfigByVersionSetID(ctx context.Context, versionSet
 
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-        SELECT id, node_serial, device, ip_cidr, version_set_id,
+        SELECT id, node_serial, device, ip_cidr::text, version_set_id,
                created_at, updated_at, created_by
         FROM hardware_configs WHERE version_set_id = $1`
 

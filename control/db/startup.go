@@ -149,23 +149,29 @@ func (sm *StateManager) ResetDatabase() error {
 
 	// Drop all tables in reverse order of dependencies
 	dropSQL := `
-	DROP TABLE IF EXISTS proxies CASCADE;
-	DROP TABLE IF EXISTS hardware_configs CASCADE;
-	DROP TABLE IF EXISTS groups CASCADE;
-	DROP TABLE IF EXISTS endpoint_configs CASCADE;
-	DROP TABLE IF EXISTS nodes CASCADE;
-	DROP TABLE IF EXISTS transaction_log CASCADE;
-	DROP TABLE IF EXISTS transactions CASCADE;
-	DROP TABLE IF EXISTS version_transitions CASCADE;
-	DROP TABLE IF EXISTS version_sets CASCADE;
-	
-	DROP TYPE IF EXISTS proxy_type CASCADE;
-	DROP TYPE IF EXISTS version_state CASCADE;
-	DROP TYPE IF EXISTS version_transition_status CASCADE;
-	DROP TYPE IF EXISTS transaction_type CASCADE;
-	DROP TYPE IF EXISTS transaction_state CASCADE;
-	DROP TYPE IF EXISTS operation_type CASCADE;
-	DROP TYPE IF EXISTS asl_key_exchange_method CASCADE;
+	drop table if exists change_log cascade;
+	drop table if exists version_sets cascade;
+	drop table if exists version_transitions cascade;
+	drop table if exists hardware_configs cascade;
+	drop type if exists version_state cascade;
+	drop type if exists version_transition_status cascade;
+	drop type if exists transaction_type cascade;
+	drop type if exists transaction_state cascade;
+	drop table if exists proxies cascade;
+	drop table if exists nodes cascade;
+	drop table if exists groups cascade;
+	drop table if exists endpoint_configs cascade;
+	drop table if exists transactions cascade;
+	drop function if exists handle_transaction_rollback() cascade;
+	drop function if exists ensure_single_pending_transaction() cascade;
+	drop function if exists create_new_pending_transaction() cascade;
+	drop function if exists log_changes() cascade;
+	drop function if exists process_rollback() cascade;
+	drop function if exists complete_transaction() cascade;
+	drop function if exists rollback_transaction() cascade;
+	drop type if exists transaction_status cascade;
+	drop type if exists proxy_type cascade;
+	drop type if exists asl_key_exchange_method cascade;
 	`
 	return sm.ExecuteInTransaction(context.Background(), func(tx pgx.Tx) error {
 		_, err := tx.Exec(context.Background(), dropSQL)

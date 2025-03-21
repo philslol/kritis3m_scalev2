@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	"github.com/rs/zerolog/log"
 )
 
 func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx context.Context) (*v1.NodeUpdateItem, error) {
@@ -97,7 +98,7 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 				proxyID        int32
 				proxyName      string
 				proxyState     bool
-				proxyType      int32
+				proxyType      string
 				serverEndpoint string
 				clientEndpoint string
 				endpointConfig types.EndpointConfig
@@ -112,6 +113,7 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 				&proxyID, &proxyName, &proxyState, &proxyType, &serverEndpoint, &clientEndpoint,
 			)
 			if err != nil {
+				log.Error().Err(err).Msg("Failed to scan row")
 				return err
 			}
 
@@ -128,14 +130,14 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 						Name:                 endpointConfig.Name,
 						MutualAuth:           endpointConfig.MutualAuth,
 						NoEncryption:         endpointConfig.NoEncryption,
-						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[endpointConfig.ASLKeyExchangeMethod]),
+						AslKeyExchangeMethod: endpointConfig.ASLKeyExchangeMethod,
 						Cipher:               endpointConfig.Cipher,
 					},
 					LegacyConfig: &v1.EndpointConfig{
 						Name:                 legacyConfig.Name,
 						MutualAuth:           legacyConfig.MutualAuth,
 						NoEncryption:         legacyConfig.NoEncryption,
-						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[legacyConfig.ASLKeyExchangeMethod]),
+						AslKeyExchangeMethod: legacyConfig.ASLKeyExchangeMethod,
 						Cipher:               legacyConfig.Cipher,
 					},
 					Proxies: []*v1.UpdateProxy{},
@@ -146,7 +148,37 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 				Name:               proxyName,
 				ServerEndpointAddr: serverEndpoint,
 				ClientEndpointAddr: clientEndpoint,
-				ProxyType:          v1.ProxyType(proxyType),
+				ProxyType:          v1.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
+			})
+		}
+
+		hw_config_query := `
+		SELECT
+			id,
+			device,
+			ip_cidr::text
+		FROM hardware_configs
+		WHERE node_serial = $1 AND version_set_id = $2::uuid`
+
+		rows, err = tx.Query(ctx, hw_config_query, SerialNumber, VersionSet)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to query hardware configs")
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var hwconfigID int32
+			var hwconfigDevice string
+			var hwconfigIPCIDR string
+			err := rows.Scan(&hwconfigID, &hwconfigDevice, &hwconfigIPCIDR)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to scan hardware config")
+				return err
+			}
+			node.HardwareConfig = append(node.HardwareConfig, &v1.HardwareConfig{
+				Id:     hwconfigID,
+				Device: hwconfigDevice,
+				IpCidr: hwconfigIPCIDR,
 			})
 		}
 
@@ -302,6 +334,10 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 			ec2.no_encryption AS legacy_no_encryption,
 			ec2.asl_key_exchange_method AS legacy_kex_method,
 			ec2.cipher AS legacy_cipher,
+  			-- Hardware Configurations
+  			hc.id AS hwconfig_id,
+  			hc.device AS hwconfig_device,
+  			hc.ip_cidr::text AS hwconfig_ip_cidr,
 			-- Proxy information
 			p.name AS proxy_name,
 			p.state AS proxy_state,
@@ -310,6 +346,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 			p.client_endpoint_addr
 		FROM target_nodes tn
 		JOIN nodes n ON n.serial_number = tn.serial_number
+		LEFT JOIN hardware_configs hc ON n.serial_number = hc.node_serial AND n.version_set_id::uuid = hc.version_set_id
 		LEFT JOIN proxies p ON p.node_serial = n.serial_number AND p.version_set_id = n.version_set_id
 		LEFT JOIN groups g ON p.group_name = g.name AND g.version_set_id = n.version_set_id
 		LEFT JOIN endpoint_configs ec1 ON g.endpoint_config_name = ec1.name AND g.version_set_id = ec1.version_set_id
@@ -440,14 +477,14 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 						Name:                 endpointConfig.Name,
 						MutualAuth:           endpointConfig.MutualAuth,
 						NoEncryption:         endpointConfig.NoEncryption,
-						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[endpointConfig.ASLKeyExchangeMethod]),
+						AslKeyExchangeMethod: endpointConfig.ASLKeyExchangeMethod,
 						Cipher:               endpointConfig.Cipher,
 					},
 					LegacyConfig: &v1.EndpointConfig{
 						Name:                 legacyConfig.Name,
 						MutualAuth:           legacyConfig.MutualAuth,
 						NoEncryption:         legacyConfig.NoEncryption,
-						AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[legacyConfig.ASLKeyExchangeMethod]),
+						AslKeyExchangeMethod: legacyConfig.ASLKeyExchangeMethod,
 						Cipher:               legacyConfig.Cipher,
 					},
 					Proxies: []*v1.UpdateProxy{},
@@ -461,7 +498,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 					Name:               proxyName,
 					ServerEndpointAddr: serverEndpoint,
 					ClientEndpointAddr: clientEndpoint,
-					ProxyType:          v1.ProxyType(proxyType),
+					ProxyType:          v1.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
 				}
 				groupUpdate.Proxies = append(groupUpdate.Proxies, proxy)
 			}

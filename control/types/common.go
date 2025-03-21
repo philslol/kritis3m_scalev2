@@ -2,6 +2,8 @@ package types
 
 import (
 	"errors"
+
+	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 )
 
 const (
@@ -44,3 +46,11 @@ const (
 )
 
 var ErrCannotParsePrefix = errors.New("cannot parse prefix")
+
+// ASLKeyExchangeMethodToProto converts a string ASL key exchange method to the proto enum
+func ASLKeyExchangeMethodToProto(method string) v1.AslKeyexchangeMethod {
+	if val, ok := v1.AslKeyexchangeMethod_value[method]; ok {
+		return v1.AslKeyexchangeMethod(val)
+	}
+	return v1.AslKeyexchangeMethod_ASL_KEX_DEFAULT
+}

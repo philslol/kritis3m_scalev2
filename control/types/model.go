@@ -57,15 +57,17 @@ var VersionStateMap = map[string]int32{
 type ProxyType string
 
 const (
-	PROXY_TYPE_FORWARD ProxyType = "forward"
-	PROXY_TYPE_REVERSE ProxyType = "reverse"
-	PROXY_TYPE_TLSTLS  ProxyType = "tlstls"
+	PROXY_TYPE_NOT_SPECIFIED ProxyType = "not_specified"
+	PROXY_TYPE_FORWARD       ProxyType = "forward"
+	PROXY_TYPE_REVERSE       ProxyType = "reverse"
+	PROXY_TYPE_TLSTLS        ProxyType = "tlstls"
 )
 
 var ProxyTypeMap = map[ProxyType]int32{
-	"forward": 0,
-	"reverse": 1,
-	"tlstls":  2,
+	"not_specified": 0,
+	"forward":       1,
+	"reverse":       2,
+	"tlstls":        3,
 }
 
 type Node struct {

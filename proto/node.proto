@@ -67,9 +67,10 @@ message ActivateResponse{
 }
 
 enum ProxyType {
-  FORWARD = 0;
-  REVERSE= 1;
-  TLSTLS =2;
+  PROXY_TYPE_UNSPECIFIED = 0;
+  FORWARD = 1;
+  REVERSE= 2;
+  TLSTLS =3;
 }
 enum AslKeyexchangeMethod {
     ASL_KEX_DEFAULT=0;
@@ -163,7 +164,7 @@ message EndpointConfig {
   string name = 2;
   bool mutual_auth = 3;
   bool no_encryption = 4;
-  AslKeyexchangeMethod asl_key_exchange_method = 5;
+  string asl_key_exchange_method = 5;
   optional string cipher = 6;
   string version_set_id = 7;
   string state = 8;

@@ -233,8 +233,8 @@ func (fac *MqttFactory) UpdateFleet(req *v1.FleetUpdate, stream grpc.ServerStrea
 	}
 	qosToken.Wait()
 
-	// Prepare update payload
 	jsonReq, err := json.Marshal(req)
+	// Prepare update payload
 	if err != nil {
 		fac.logger.Error().Err(err).Msg("Failed to marshal update request")
 		return fmt.Errorf("failed to marshal update request: %w", err)
@@ -272,6 +272,7 @@ func (fac *MqttFactory) UpdateNode(req *v1.NodeUpdate, stream grpc.ServerStreami
 	defer c.cleanup()
 
 	serialNumber := req.NodeUpdateItem.SerialNumber
+
 	// Use high qos
 	topicQos := serialNumber + "/control/qos"
 	topicConfig := serialNumber + "/config" // Fixed the topic path
@@ -302,6 +303,8 @@ func (fac *MqttFactory) UpdateNode(req *v1.NodeUpdate, stream grpc.ServerStreami
 		log.Err(err).Msg("error marshalling request")
 		return status.Errorf(codes.Internal, "failed to marshal request")
 	}
+
+	fmt.Printf("jsonReq: %+s\n", string(jsonReq))
 
 	// Publish config to client
 	configToken := c.client.Publish(topicConfig, 2, false, jsonReq)
@@ -683,4 +686,90 @@ func sendUpdateResponse(
 		TxId:        txId,
 		NodeId:      nodeId,
 	})
+}
+
+// marshalFleetUpdateWithEnums handles custom marshalling for FleetUpdate
+// to properly set numeric values for enum fields like ProxyType
+func marshalFleetUpdateWithEnums(req *v1.FleetUpdate) ([]byte, error) {
+	// Create a copy that will be properly marshalled
+	type proxyWithNumericType struct {
+		Name               string `json:"name,omitempty"`
+		ServerEndpointAddr string `json:"server_endpoint_addr,omitempty"`
+		ClientEndpointAddr string `json:"client_endpoint_addr,omitempty"`
+		ProxyType          int32  `json:"proxy_type"`
+	}
+
+	type groupProxyUpdateWithEnums struct {
+		GroupName      string                 `json:"group_name,omitempty"`
+		EndpointConfig *v1.EndpointConfig     `json:"endpoint_config,omitempty"`
+		LegacyConfig   *v1.EndpointConfig     `json:"legacy_config,omitempty"`
+		GroupLogLevel  int32                  `json:"group_log_level,omitempty"`
+		Proxies        []proxyWithNumericType `json:"proxies,omitempty"`
+	}
+
+	type nodeUpdateItemWithEnums struct {
+		SerialNumber     string                      `json:"serial_number,omitempty"`
+		NetworkIndex     int32                       `json:"network_index,omitempty"`
+		Locality         string                      `json:"locality,omitempty"`
+		VersionSetId     string                      `json:"version_set_id,omitempty"`
+		GroupProxyUpdate []groupProxyUpdateWithEnums `json:"group_proxy_update,omitempty"`
+	}
+
+	type fleetUpdateWithEnums struct {
+		Transaction     *v1.Transaction           `json:"transaction,omitempty"`
+		NodeUpdateItems []nodeUpdateItemWithEnums `json:"node_update_items,omitempty"`
+	}
+
+	// Convert the request to our custom structure
+	customReq := fleetUpdateWithEnums{
+		Transaction: req.Transaction,
+	}
+
+	if len(req.NodeUpdateItems) > 0 {
+		customReq.NodeUpdateItems = make([]nodeUpdateItemWithEnums, len(req.NodeUpdateItems))
+
+		for i, nodeItem := range req.NodeUpdateItems {
+			customNodeItem := nodeUpdateItemWithEnums{
+				SerialNumber: nodeItem.SerialNumber,
+				NetworkIndex: nodeItem.NetworkIndex,
+				Locality:     nodeItem.Locality,
+				VersionSetId: nodeItem.VersionSetId,
+			}
+
+			// Handle GroupProxyUpdate
+			if len(nodeItem.GroupProxyUpdate) > 0 {
+				customNodeItem.GroupProxyUpdate = make([]groupProxyUpdateWithEnums, len(nodeItem.GroupProxyUpdate))
+
+				for j, gpu := range nodeItem.GroupProxyUpdate {
+					customGpu := groupProxyUpdateWithEnums{
+						GroupName:      gpu.GroupName,
+						EndpointConfig: gpu.EndpointConfig,
+						LegacyConfig:   gpu.LegacyConfig,
+						GroupLogLevel:  gpu.GroupLogLevel,
+					}
+
+					// Handle proxies with explicit enum type
+					if len(gpu.Proxies) > 0 {
+						customGpu.Proxies = make([]proxyWithNumericType, len(gpu.Proxies))
+
+						for k, proxy := range gpu.Proxies {
+							customGpu.Proxies[k] = proxyWithNumericType{
+								Name:               proxy.Name,
+								ServerEndpointAddr: proxy.ServerEndpointAddr,
+								ClientEndpointAddr: proxy.ClientEndpointAddr,
+								ProxyType:          int32(proxy.ProxyType), // Convert enum to int32
+							}
+						}
+					}
+
+					customNodeItem.GroupProxyUpdate[j] = customGpu
+				}
+			}
+
+			customReq.NodeUpdateItems[i] = customNodeItem
+		}
+	}
+
+	// Marshal with the custom structure that properly handles enum values
+	return json.Marshal(customReq)
 }

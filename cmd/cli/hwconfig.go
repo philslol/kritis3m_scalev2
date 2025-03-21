@@ -21,8 +21,8 @@ func init() {
 	createHwConfigCmd.Flags().StringP("ip-cidr", "i", "", "IP CIDR")
 	createHwConfigCmd.MarkFlagRequired("ip-cidr")
 
-	createHwConfigCmd.Flags().StringP("node-serial", "n", "", "Node serial number")
-	createHwConfigCmd.MarkFlagRequired("node-serial")
+	createHwConfigCmd.Flags().StringP("serial-number", "s", "", "Node serial number")
+	createHwConfigCmd.MarkFlagRequired("serial-number")
 
 	createHwConfigCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	createHwConfigCmd.MarkFlagRequired("version-number")
@@ -36,8 +36,8 @@ func init() {
 	// Read command flags
 	readHwConfigCmd.Flags().StringP("version-number", "v", "", "Version set ID")
 	readHwConfigCmd.MarkFlagRequired("version-number")
-	readHwConfigCmd.Flags().StringP("node-serial", "n", "", "Node serial number")
-	readHwConfigCmd.MarkFlagRequired("node-serial")
+	readHwConfigCmd.Flags().StringP("serial-number", "s", "", "Node serial number")
+	readHwConfigCmd.MarkFlagRequired("serial-number")
 	readHwConfigCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format: json, json-line, yaml")
 	hwConfigCli.AddCommand(readHwConfigCmd)
 
@@ -74,7 +74,7 @@ var createHwConfigCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		device, _ := cmd.Flags().GetString("device")
 		ipCidr, _ := cmd.Flags().GetString("ip-cidr")
-		nodeSerial, _ := cmd.Flags().GetString("node-serial")
+		nodeSerial, _ := cmd.Flags().GetString("serial-number")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
 		createdBy, _ := cmd.Flags().GetString("created-by")
 
@@ -110,7 +110,7 @@ var readHwConfigCmd = &cobra.Command{
 	Long:  "Read and display details of a specific hardware configuration",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		versionSetID, _ := cmd.Flags().GetString("version-number")
-		nodeSerial, _ := cmd.Flags().GetString("node-serial")
+		nodeSerial, _ := cmd.Flags().GetString("serial-number")
 
 		id, _ := cmd.Flags().GetInt32("id")
 

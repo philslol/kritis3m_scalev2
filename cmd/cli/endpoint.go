@@ -5,6 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -86,7 +87,7 @@ var createEndpointCmd = &cobra.Command{
 			Name:                 name,
 			MutualAuth:           mutualAuth,
 			NoEncryption:         noEncryption,
-			AslKeyExchangeMethod: v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[kexMethod]),
+			AslKeyExchangeMethod: types.ASLKeyExchangeMethodToProto(kexMethod),
 			Cipher:               &cipher,
 			CreatedBy:            createdBy,
 			VersionSetId:         versionSetID,
@@ -287,7 +288,7 @@ func PrintEndpointsAsTable(endpoints []*v1.EndpointConfig) {
 			ep.Name,
 			ep.MutualAuth,
 			ep.NoEncryption,
-			ep.AslKeyExchangeMethod.String(),
+			ep.AslKeyExchangeMethod,
 			*ep.Cipher,
 			ep.CreatedBy,
 		)
