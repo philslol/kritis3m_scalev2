@@ -74,6 +74,7 @@ var createHwConfigCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		device, _ := cmd.Flags().GetString("device")
 		ipCidr, _ := cmd.Flags().GetString("ip-cidr")
+		log.Info().Msgf("ipCidr: %s", ipCidr)
 		nodeSerial, _ := cmd.Flags().GetString("serial-number")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
 		createdBy, _ := cmd.Flags().GetString("created-by")

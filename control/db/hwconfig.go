@@ -38,11 +38,17 @@ func (s *StateManager) GetHwConfigPByID(ctx context.Context, id int) (*types.Har
                created_at, updated_at, created_by
         FROM hardware_configs WHERE id = $1`
 
-		return tx.QueryRow(ctx, query, id).Scan(
-			&config.ID, &config.NodeSerial, &config.Device, &config.IPCIDR,
+		var ipCIDR string
+		err := tx.QueryRow(ctx, query, id).Scan(
+			&config.ID, &config.NodeSerial, &config.Device, &ipCIDR,
 			&config.VersionSetID, &config.CreatedAt,
 			&config.UpdatedAt, &config.CreatedBy,
 		)
+		if err != nil {
+			return err
+		}
+		config.IPCIDR = ipCIDR
+		return nil
 	})
 	if err != nil {
 		log.Err(err).Msg("failed to get hardware config by id")
@@ -67,14 +73,16 @@ func (s *StateManager) GetHwConfigbyNodeID(ctx context.Context, nodeID int) ([]*
 
 		for rows.Next() {
 			config := &types.HardwareConfig{}
+			var ipCIDR string
 			err := rows.Scan(
-				&config.ID, &config.NodeSerial, &config.Device, &config.IPCIDR,
+				&config.ID, &config.NodeSerial, &config.Device, &ipCIDR,
 				&config.VersionSetID, &config.CreatedAt,
 				&config.UpdatedAt, &config.CreatedBy,
 			)
 			if err != nil {
 				return err
 			}
+			config.IPCIDR = ipCIDR
 			configs = append(configs, config)
 		}
 		return nil
@@ -102,14 +110,16 @@ func (s *StateManager) GetHwConfigBySerial(ctx context.Context, serialNumber str
 
 		for rows.Next() {
 			config := &types.HardwareConfig{}
+			var ipCIDR string
 			err := rows.Scan(
-				&config.ID, &config.NodeSerial, &config.Device, &config.IPCIDR,
+				&config.ID, &config.NodeSerial, &config.Device, &ipCIDR,
 				&config.VersionSetID, &config.CreatedAt,
 				&config.UpdatedAt, &config.CreatedBy,
 			)
 			if err != nil {
 				return err
 			}
+			config.IPCIDR = ipCIDR
 			configs = append(configs, config)
 		}
 		return nil
@@ -138,14 +148,16 @@ func (s *StateManager) GetHwConfigByVersionSetID(ctx context.Context, versionSet
 
 		for rows.Next() {
 			config := &types.HardwareConfig{}
+			var ipCIDR string
 			err := rows.Scan(
-				&config.ID, &config.NodeSerial, &config.Device, &config.IPCIDR,
+				&config.ID, &config.NodeSerial, &config.Device, &ipCIDR,
 				&config.VersionSetID, &config.CreatedAt,
 				&config.UpdatedAt, &config.CreatedBy,
 			)
 			if err != nil {
 				return err
 			}
+			config.IPCIDR = ipCIDR
 			configs = append(configs, config)
 		}
 		return nil

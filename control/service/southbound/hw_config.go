@@ -3,7 +3,6 @@ package southbound
 import (
 	"context"
 	"fmt"
-	"net"
 	"strconv"
 
 	"github.com/gofrs/uuid/v5"
@@ -19,16 +18,10 @@ func (sb *SouthboundService) CreateHardwareConfig(ctx context.Context, req *v1.C
 		return nil, fmt.Errorf("invalid version set ID: %w", err)
 	}
 
-	// Parse IP CIDR
-	_, ipNet, err := net.ParseCIDR(req.IpCidr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid IP CIDR: %w", err)
-	}
-
 	config := &types.HardwareConfig{
 		NodeSerial:   req.NodeSerialNumber,
 		Device:       req.Device,
-		IPCIDR:       *ipNet,
+		IPCIDR:       req.IpCidr,
 		VersionSetID: versionSetID,
 		CreatedBy:    "system", // You might want to get this from context or auth
 	}
@@ -44,7 +37,7 @@ func (sb *SouthboundService) CreateHardwareConfig(ctx context.Context, req *v1.C
 				Id:               int32(config.ID),
 				NodeSerialNumber: config.NodeSerial,
 				Device:           config.Device,
-				IpCidr:           config.IPCIDR.String(),
+				IpCidr:           config.IPCIDR,
 				VersionSetId:     config.VersionSetID.String(),
 			},
 		},
@@ -95,7 +88,7 @@ func (sb *SouthboundService) GetHardwareConfig(ctx context.Context, req *v1.GetH
 			Id:               int32(config.ID),
 			NodeSerialNumber: config.NodeSerial,
 			Device:           config.Device,
-			IpCidr:           config.IPCIDR.String(),
+			IpCidr:           config.IPCIDR,
 			VersionSetId:     config.VersionSetID.String(),
 		}
 	}
@@ -110,12 +103,7 @@ func (sb *SouthboundService) UpdateHardwareConfig(ctx context.Context, req *v1.U
 		updates["device"] = *req.Device
 	}
 	if req.IpCidr != nil {
-		// Parse IP CIDR
-		_, ipNet, err := net.ParseCIDR(*req.IpCidr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid IP CIDR: %w", err)
-		}
-		updates["ip_cidr"] = *ipNet
+		updates["ip_cidr"] = *req.IpCidr
 	}
 	if req.VersionSetId != nil {
 		versionSetID, err := uuid.FromString(*req.VersionSetId)

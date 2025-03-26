@@ -1,7 +1,6 @@
 package types
 
 import (
-	"net"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -98,7 +97,7 @@ type HardwareConfig struct {
 	ID           int       `json:"id"`
 	NodeSerial   string    `json:"node_serial"`
 	Device       string    `json:"device"`
-	IPCIDR       net.IPNet `json:"ip_cidr"`
+	IPCIDR       string    `json:"ip_cidr"`
 	VersionSetID uuid.UUID `json:"version_set_id,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

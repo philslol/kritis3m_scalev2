@@ -64,7 +64,7 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 						Id:               int32(config.ID),
 						NodeSerialNumber: config.NodeSerial,
 						Device:           config.Device,
-						IpCidr:           config.IPCIDR.String(),
+						IpCidr:           config.IPCIDR,
 						VersionSetId:     config.VersionSetID.String(),
 					}
 				}
@@ -177,7 +177,7 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 					Id:               int32(config.ID),
 					NodeSerialNumber: config.NodeSerial,
 					Device:           config.Device,
-					IpCidr:           config.IPCIDR.String(),
+					IpCidr:           config.IPCIDR,
 					VersionSetId:     config.VersionSetID.String(),
 				}
 			}
