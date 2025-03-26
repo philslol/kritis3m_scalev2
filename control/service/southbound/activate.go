@@ -144,25 +144,35 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 					return
 				}
 
-				_, err = sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
-					TransactionID: int(tx),
-					NodeSerial:    resp.NodeId,
-					VersionSetID:  uuid_version_set,
-					State:         types.TransactionState(resp.UpdateState),
-				})
+				// Process global fleet state update
+				log.Info().
+					Str("state", resp.UpdateState.String()).
+					Int32("tx_id", resp.TxId).
+					Str("meta", resp.Meta).
+					Msg("Fleet update state changed")
 
-				if err != nil {
-					lastError = err
-					log.Error().Err(err).Msg("Failed to log transaction")
-					return
+				// Log transaction for each node with the current global state
+				for _, node := range fleetUpdate.NodeUpdateItems {
+					_, err = sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
+						TransactionID: int(tx),
+						NodeSerial:    node.SerialNumber,
+						VersionSetID:  uuid_version_set,
+						State:         types.TransactionState(resp.UpdateState),
+					})
+
+					if err != nil {
+						lastError = err
+						log.Error().Err(err).Msg("Failed to log transaction")
+						return
+					}
 				}
 
 				// Handle terminal states
-				if resp.UpdateState == v1.UpdateState_ERROR || resp.UpdateState == v1.UpdateState_NODE_APPLIED {
-					if resp.UpdateState == v1.UpdateState_ERROR {
+				if resp.UpdateState == v1.UpdateState_UPDATE_ERROR || resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
+					if resp.UpdateState == v1.UpdateState_UPDATE_ERROR {
 						completed_at := time.Now()
 						error_state := types.TransactionStateError
-						error_description := fmt.Sprintf("Failed to apply update: %v", err)
+						error_description := fmt.Sprintf("Failed to apply update: %s", resp.Meta)
 						sb.db.UpdateTransaction(ctx, int(tx), &completed_at, &error_state, &error_description)
 						retcode = -1
 						// Update version transition status if this was a version update
@@ -172,7 +182,7 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 								log.Error().Err(err).Msg("Failed to update version transition status")
 							}
 						}
-					} else if resp.UpdateState == v1.UpdateState_NODE_APPLIED {
+					} else if resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
 						completed_at := time.Now()
 						applied_state := types.TransactionStateApplied
 						applied_description := "Update applied successfully"
@@ -288,7 +298,7 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 	var lastError error
 
 	// Create done channel for graceful shutdown
-	done := make(chan struct{})
+	done := make(chan error)
 	defer close(done)
 
 	// Start goroutine to handle stream receiving
@@ -311,11 +321,24 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 				}
 
 				// Log transaction
+				var state types.TransactionState
+				if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
+					state = types.TransactionStateApplied
+				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_ERROR {
+					state = types.TransactionStateError
+				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLY_REQ {
+					state = types.TransactionStateApplicable
+				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLICABLE {
+					state = types.TransactionStateApplicable
+				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_PUBLISHED {
+					state = types.TransactionStatePublished
+				}
+
 				_, err = sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
 					TransactionID: int(tx),
 					NodeSerial:    req.SerialNumber,
 					VersionSetID:  uuid_version_set,
-					State:         types.TransactionState(stream_resp.UpdateState),
+					State:         state,
 				})
 				if err != nil {
 					lastError = err
@@ -323,10 +346,11 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 					return
 				}
 
-				if stream_resp.UpdateState == v1.UpdateState_ERROR || stream_resp.UpdateState == v1.UpdateState_NODE_APPLIED {
-					if stream_resp.UpdateState == v1.UpdateState_ERROR {
+				// Handle terminal states
+				if stream_resp.UpdateState == v1.UpdateState_UPDATE_ERROR || stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
+					if stream_resp.UpdateState == v1.UpdateState_UPDATE_ERROR {
 						retcode = -1
-					} else if stream_resp.UpdateState == v1.UpdateState_NODE_APPLIED {
+					} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
 						retcode = 0
 					}
 
@@ -339,8 +363,8 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 					if err != nil {
 						lastError = err
 						log.Error().Err(err).Msg("Failed to set transaction completed")
-						return
 					}
+					done <- nil
 					return
 				}
 			}
@@ -373,7 +397,7 @@ func (sb *SouthboundService) logTransactionFailure(ctx context.Context, tx int, 
 		TransactionID: tx,
 		NodeSerial:    serialNumber,
 		VersionSetID:  versionSetID,
-		State:         types.TransactionState(v1.UpdateState_ERROR),
+		State:         types.TransactionState(v1.UpdateState_UPDATE_ERROR),
 	})
 	return err
 }

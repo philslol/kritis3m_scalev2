@@ -163,6 +163,7 @@ func (sm *StateManager) ResetDatabase() error {
 	drop table if exists endpoint_configs cascade;
 	drop table if exists transactions cascade;
 	drop function if exists handle_transaction_rollback() cascade;
+	drop table if exists transaction_log cascade;
 	drop function if exists ensure_single_pending_transaction() cascade;
 	drop function if exists create_new_pending_transaction() cascade;
 	drop function if exists log_changes() cascade;

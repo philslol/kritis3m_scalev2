@@ -31,7 +31,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ControlPlaneClient interface {
 	UpdateNode(ctx context.Context, in *NodeUpdate, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UpdateResponse], error)
-	UpdateFleet(ctx context.Context, in *FleetUpdate, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UpdateResponse], error)
+	UpdateFleet(ctx context.Context, in *FleetUpdate, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FleetResponse], error)
 	Hello(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[HelloResponse], error)
 	Log(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogResponse], error)
 }
@@ -63,13 +63,13 @@ func (c *controlPlaneClient) UpdateNode(ctx context.Context, in *NodeUpdate, opt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ControlPlane_UpdateNodeClient = grpc.ServerStreamingClient[UpdateResponse]
 
-func (c *controlPlaneClient) UpdateFleet(ctx context.Context, in *FleetUpdate, opts ...grpc.CallOption) (grpc.ServerStreamingClient[UpdateResponse], error) {
+func (c *controlPlaneClient) UpdateFleet(ctx context.Context, in *FleetUpdate, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FleetResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &ControlPlane_ServiceDesc.Streams[1], ControlPlane_UpdateFleet_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[FleetUpdate, UpdateResponse]{ClientStream: stream}
+	x := &grpc.GenericClientStream[FleetUpdate, FleetResponse]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (c *controlPlaneClient) UpdateFleet(ctx context.Context, in *FleetUpdate, o
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ControlPlane_UpdateFleetClient = grpc.ServerStreamingClient[UpdateResponse]
+type ControlPlane_UpdateFleetClient = grpc.ServerStreamingClient[FleetResponse]
 
 func (c *controlPlaneClient) Hello(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[HelloResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -125,7 +125,7 @@ type ControlPlane_LogClient = grpc.ServerStreamingClient[LogResponse]
 // for forward compatibility.
 type ControlPlaneServer interface {
 	UpdateNode(*NodeUpdate, grpc.ServerStreamingServer[UpdateResponse]) error
-	UpdateFleet(*FleetUpdate, grpc.ServerStreamingServer[UpdateResponse]) error
+	UpdateFleet(*FleetUpdate, grpc.ServerStreamingServer[FleetResponse]) error
 	Hello(*empty.Empty, grpc.ServerStreamingServer[HelloResponse]) error
 	Log(*empty.Empty, grpc.ServerStreamingServer[LogResponse]) error
 	mustEmbedUnimplementedControlPlaneServer()
@@ -141,7 +141,7 @@ type UnimplementedControlPlaneServer struct{}
 func (UnimplementedControlPlaneServer) UpdateNode(*NodeUpdate, grpc.ServerStreamingServer[UpdateResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method UpdateNode not implemented")
 }
-func (UnimplementedControlPlaneServer) UpdateFleet(*FleetUpdate, grpc.ServerStreamingServer[UpdateResponse]) error {
+func (UnimplementedControlPlaneServer) UpdateFleet(*FleetUpdate, grpc.ServerStreamingServer[FleetResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method UpdateFleet not implemented")
 }
 func (UnimplementedControlPlaneServer) Hello(*empty.Empty, grpc.ServerStreamingServer[HelloResponse]) error {
@@ -187,11 +187,11 @@ func _ControlPlane_UpdateFleet_Handler(srv interface{}, stream grpc.ServerStream
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ControlPlaneServer).UpdateFleet(m, &grpc.GenericServerStream[FleetUpdate, UpdateResponse]{ServerStream: stream})
+	return srv.(ControlPlaneServer).UpdateFleet(m, &grpc.GenericServerStream[FleetUpdate, FleetResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ControlPlane_UpdateFleetServer = grpc.ServerStreamingServer[UpdateResponse]
+type ControlPlane_UpdateFleetServer = grpc.ServerStreamingServer[FleetResponse]
 
 func _ControlPlane_Hello_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(empty.Empty)
