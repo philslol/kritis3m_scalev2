@@ -3,7 +3,7 @@ module github.com/philslol/kritis3m_scalev2
 go 1.23.5
 
 require (
-	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.8
+	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.9
 	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est v1.0.11
 	github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250127171153-04e29aca11d6
 	github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-00010101000000-000000000000

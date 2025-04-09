@@ -13,11 +13,17 @@ import (
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
 	controlplane "github.com/philslol/kritis3m_scalev2/control/service/control_plane"
 )
+
+func init() {
+	// Set global log level to debug
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+}
 
 type Kritis3m_Scale struct {
 	cfg *types.Config
@@ -38,6 +44,9 @@ func (scale *Kritis3m_Scale) Serve() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
 	// Create EST server with the application context
 	estServer, err := controlplane.NewESTServer(&scale.cfg.ESTServer)
 	if err != nil {
@@ -53,14 +62,13 @@ func (scale *Kritis3m_Scale) Serve() {
 				log.Error().Err(err).Msg("EST server serve failed")
 				cancel() // Cancel context on EST server failure
 			}
+			log.Info().Msg("EST server stopped")
+			log.Info().Msg("EST server stopped\n\n")
 		}()
 
 		// Ensure server is properly shut down
 		defer estServer.Shutdown()
 	}
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
 	database, err := db.NewStateManager(ctx)
 	if err != nil {

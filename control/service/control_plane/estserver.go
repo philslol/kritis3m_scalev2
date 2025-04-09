@@ -69,7 +69,6 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	endpointConfig := &asl.EndpointConfig{
 		MutualAuthentication: cfg.TLS.ASLEndpoint.MutualAuthentication,
 		ASLKeyExchangeMethod: asl.KEX_DEFAULT, // TODO: Add key exchange method to configuration
-		Ciphersuites:         cfg.TLS.ASLEndpoint.Ciphersuites,
 		PreSharedKey: asl.PreSharedKey{
 			Enable: false,
 		},

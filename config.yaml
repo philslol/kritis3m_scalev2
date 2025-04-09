@@ -1,7 +1,7 @@
 #all non absolute paths are added up with the directory of the config file
 # suppose path: ./my/relative/path -> /path/to/configfile/my/relative/path
 
-cli_timeout_s: 100 
+cli_timeout_s: 100
 grpc_listen_addr: 127.0.0.1:50443
 log_file: ./kritis3m_scale.log
 
@@ -23,10 +23,10 @@ asl_config:
 
 broker_config:
   address: ":8883"
-  tcp_only: false 
+  tcp_only: false
   log:
     format: text
-    log_level: 1
+    log_level: 4
   endpoint_config:
     private_key: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/privateKey.pem"
     device_cert: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/chain.pem" #device certificate chain
@@ -38,10 +38,10 @@ broker_config:
 
 control_plane_config:
   server_address: ":8883"
-  tcp_only: false 
+  tcp_only: false
   log:
     format: text
-    log_level: 1
+    log_level: 4
   endpoint_config:
     private_key: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/privateKey.pem"
     device_cert: "/home/philipp/development/kritis3m_workspace/certificates/test_certs/secp384/chain.pem" #device certificate chain
@@ -54,7 +54,7 @@ control_plane_config:
 est_server_config:
   ca:
     certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/ca_chain.pem"
-    private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem" 
+    private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem"
     validity: 365
     pkcs11_module:
       path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
@@ -81,6 +81,6 @@ est_server_config:
   timeout: 30
   log:
     format: text
-    log_level: 3
+    log_level: 4
 
 acl_policy_path: ./startup.json
