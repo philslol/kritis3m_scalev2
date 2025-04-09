@@ -4,18 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	grpc_control_plane "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/control_plane"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
+
+	// v1 "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/gen/go/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 )
 
-func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx context.Context) (*v1.NodeUpdateItem, error) {
-	node := &v1.NodeUpdateItem{
+func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx context.Context) (*grpc_control_plane.NodeUpdateItem, error) {
+	node := &grpc_control_plane.NodeUpdateItem{
 		SerialNumber: SerialNumber,
 		VersionSetId: VersionSet,
 	}
-	groupMap := make(map[string]*v1.GroupProxyUpdate)
+	groupMap := make(map[string]*grpc_control_plane.GroupProxyUpdate)
 	query := `
 	WITH node_info AS (
 	    SELECT
@@ -123,32 +126,32 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 			}
 
 			if _, exists := groupMap[groupKey]; !exists {
-				groupMap[groupKey] = &v1.GroupProxyUpdate{
+				groupMap[groupKey] = &grpc_control_plane.GroupProxyUpdate{
 					GroupName:     groupName,
 					GroupLogLevel: groupLogLevel,
-					EndpointConfig: &v1.EndpointConfig{
+					EndpointConfig: &grpc_southbound.EndpointConfig{
 						Name:                 endpointConfig.Name,
 						MutualAuth:           endpointConfig.MutualAuth,
 						NoEncryption:         endpointConfig.NoEncryption,
 						AslKeyExchangeMethod: endpointConfig.ASLKeyExchangeMethod,
 						Cipher:               endpointConfig.Cipher,
 					},
-					LegacyConfig: &v1.EndpointConfig{
+					LegacyConfig: &grpc_southbound.EndpointConfig{
 						Name:                 legacyConfig.Name,
 						MutualAuth:           legacyConfig.MutualAuth,
 						NoEncryption:         legacyConfig.NoEncryption,
 						AslKeyExchangeMethod: legacyConfig.ASLKeyExchangeMethod,
 						Cipher:               legacyConfig.Cipher,
 					},
-					Proxies: []*v1.UpdateProxy{},
+					Proxies: []*grpc_control_plane.UpdateProxy{},
 				}
 			}
 
-			groupMap[groupKey].Proxies = append(groupMap[groupKey].Proxies, &v1.UpdateProxy{
+			groupMap[groupKey].Proxies = append(groupMap[groupKey].Proxies, &grpc_control_plane.UpdateProxy{
 				Name:               proxyName,
 				ServerEndpointAddr: serverEndpoint,
 				ClientEndpointAddr: clientEndpoint,
-				ProxyType:          v1.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
+				ProxyType:          grpc_southbound.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
 			})
 		}
 
@@ -175,7 +178,7 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 				log.Error().Err(err).Msg("Failed to scan hardware config")
 				return err
 			}
-			node.HardwareConfig = append(node.HardwareConfig, &v1.HardwareConfig{
+			node.HardwareConfig = append(node.HardwareConfig, &grpc_southbound.HardwareConfig{
 				Id:     hwconfigID,
 				Device: hwconfigDevice,
 				IpCidr: hwconfigIPCIDR,
@@ -197,8 +200,8 @@ func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx co
 
 // GetVersionFleetUpdate retrieves all nodes for a specific version set
 /* MUST BE TESTED */
-func (s *StateManager) GetVersionFleetUpdate(ctx context.Context, versionSetId string) (*v1.FleetUpdate, error) {
-	var nodes []*v1.NodeUpdateItem
+func (s *StateManager) GetVersionFleetUpdate(ctx context.Context, versionSetId string) (*grpc_control_plane.FleetUpdate, error) {
+	var nodes []*grpc_control_plane.NodeUpdateItem
 
 	// Get all nodes for this version set
 	query := `
@@ -240,15 +243,15 @@ func (s *StateManager) GetVersionFleetUpdate(ctx context.Context, versionSetId s
 		return nil, nil
 	}
 
-	return &v1.FleetUpdate{
+	return &grpc_control_plane.FleetUpdate{
 		NodeUpdateItems: nodes,
 	}, nil
 }
 
 // GetGroupFleetUpdate retrieves all nodes for a specific group in a version set
 /* MUST BE TESTED */
-func (s *StateManager) GetGroupFleetUpdate(ctx context.Context, groupName string, versionSetId string) (*v1.FleetUpdate, error) {
-	var nodes []*v1.NodeUpdateItem
+func (s *StateManager) GetGroupFleetUpdate(ctx context.Context, groupName string, versionSetId string) (*grpc_control_plane.FleetUpdate, error) {
+	var nodes []*grpc_control_plane.NodeUpdateItem
 
 	// Get all nodes in this group
 	query := `
@@ -292,7 +295,7 @@ func (s *StateManager) GetGroupFleetUpdate(ctx context.Context, groupName string
 		return nil, nil
 	}
 
-	return &v1.FleetUpdate{
+	return &grpc_control_plane.FleetUpdate{
 		NodeUpdateItems: nodes,
 	}, nil
 }
@@ -300,7 +303,7 @@ func (s *StateManager) GetGroupFleetUpdate(ctx context.Context, groupName string
 // GetFleetUpdateOptimized retrieves all nodes and their configurations in a single query
 // If groupName is empty, it performs a version update, otherwise a group update
 /* MUST BE TESTED */
-func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId string, groupName string) (*v1.FleetUpdate, error) {
+func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId string, groupName string) (*grpc_control_plane.FleetUpdate, error) {
 	var query string
 	var args []any
 
@@ -402,8 +405,8 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 		args = []any{groupName, versionSetId}
 	}
 
-	nodeMap := make(map[string]*v1.NodeUpdateItem)
-	var nodes []*v1.NodeUpdateItem
+	nodeMap := make(map[string]*grpc_control_plane.NodeUpdateItem)
+	var nodes []*grpc_control_plane.NodeUpdateItem
 
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, args...)
@@ -445,12 +448,12 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 			// Get or create node
 			node, exists := nodeMap[serialNumber]
 			if !exists {
-				node = &v1.NodeUpdateItem{
+				node = &grpc_control_plane.NodeUpdateItem{
 					SerialNumber:     serialNumber,
 					NetworkIndex:     networkIndex,
 					Locality:         locality,
 					VersionSetId:     versionSetId,
-					GroupProxyUpdate: []*v1.GroupProxyUpdate{},
+					GroupProxyUpdate: []*grpc_control_plane.GroupProxyUpdate{},
 				}
 				nodeMap[serialNumber] = node
 				nodes = append(nodes, node)
@@ -462,7 +465,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 			}
 
 			// Find or create group update
-			var groupUpdate *v1.GroupProxyUpdate
+			var groupUpdate *grpc_control_plane.GroupProxyUpdate
 			for _, g := range node.GroupProxyUpdate {
 				if g.GroupName == groupName {
 					groupUpdate = g
@@ -470,35 +473,35 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 				}
 			}
 			if groupUpdate == nil {
-				groupUpdate = &v1.GroupProxyUpdate{
+				groupUpdate = &grpc_control_plane.GroupProxyUpdate{
 					GroupName:     groupName,
 					GroupLogLevel: groupLogLevel,
-					EndpointConfig: &v1.EndpointConfig{
+					EndpointConfig: &grpc_southbound.EndpointConfig{
 						Name:                 endpointConfig.Name,
 						MutualAuth:           endpointConfig.MutualAuth,
 						NoEncryption:         endpointConfig.NoEncryption,
 						AslKeyExchangeMethod: endpointConfig.ASLKeyExchangeMethod,
 						Cipher:               endpointConfig.Cipher,
 					},
-					LegacyConfig: &v1.EndpointConfig{
+					LegacyConfig: &grpc_southbound.EndpointConfig{
 						Name:                 legacyConfig.Name,
 						MutualAuth:           legacyConfig.MutualAuth,
 						NoEncryption:         legacyConfig.NoEncryption,
 						AslKeyExchangeMethod: legacyConfig.ASLKeyExchangeMethod,
 						Cipher:               legacyConfig.Cipher,
 					},
-					Proxies: []*v1.UpdateProxy{},
+					Proxies: []*grpc_control_plane.UpdateProxy{},
 				}
 				node.GroupProxyUpdate = append(node.GroupProxyUpdate, groupUpdate)
 			}
 
 			// Add proxy if it exists
 			if proxyName != "" {
-				proxy := &v1.UpdateProxy{
+				proxy := &grpc_control_plane.UpdateProxy{
 					Name:               proxyName,
 					ServerEndpointAddr: serverEndpoint,
 					ClientEndpointAddr: clientEndpoint,
-					ProxyType:          v1.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
+					ProxyType:          grpc_southbound.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
 				}
 				groupUpdate.Proxies = append(groupUpdate.Proxies, proxy)
 			}
@@ -515,7 +518,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 		return nil, nil
 	}
 
-	return &v1.FleetUpdate{
+	return &grpc_control_plane.FleetUpdate{
 		NodeUpdateItems: nodes,
 	}, nil
 }

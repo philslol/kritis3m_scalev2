@@ -6,9 +6,10 @@ import (
 	"io"
 	"time"
 
+	grpc_controlplane "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/control_plane"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/gofrs/uuid/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -16,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func getControlPlaneClient(addr string) (v1.ControlPlaneClient, *grpc.ClientConn, error) {
+func getControlPlaneClient(addr string) (grpc_controlplane.ControlPlaneClient, *grpc.ClientConn, error) {
 	grpcOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
 	conn, err := grpc.NewClient(addr, grpcOptions...)
@@ -25,11 +26,11 @@ func getControlPlaneClient(addr string) (v1.ControlPlaneClient, *grpc.ClientConn
 		return nil, nil, status.Error(codes.Internal, "Failed to connect to control plane")
 	}
 
-	client := v1.NewControlPlaneClient(conn)
+	client := grpc_controlplane.NewControlPlaneClient(conn)
 	return client, conn, nil
 }
 
-func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.ActivateFleetRequest) (*v1.ActivateResponse, error) {
+func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southbound.ActivateFleetRequest) (*grpc_southbound.ActivateResponse, error) {
 	// Add timeout to context
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute) // Longer timeout for fleet updates
 	defer cancel()
@@ -47,7 +48,7 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 	}
 
 	// Determine update type and get fleet update
-	var fleetUpdate *v1.FleetUpdate
+	var fleetUpdate *grpc_controlplane.FleetUpdate
 	var description string
 	var transactionType types.TransactionType
 
@@ -105,7 +106,7 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 	defer conn.Close()
 
 	// Set transaction ID in fleet update
-	fleetUpdate.Transaction = &v1.Transaction{
+	fleetUpdate.Transaction = &grpc_controlplane.Transaction{
 		TxId: int32(tx),
 	}
 
@@ -168,8 +169,8 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 				}
 
 				// Handle terminal states
-				if resp.UpdateState == v1.UpdateState_UPDATE_ERROR || resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
-					if resp.UpdateState == v1.UpdateState_UPDATE_ERROR {
+				if resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR || resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
+					if resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR {
 						completed_at := time.Now()
 						error_state := types.TransactionStateError
 						error_description := fmt.Sprintf("Failed to apply update: %s", resp.Meta)
@@ -182,7 +183,7 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 								log.Error().Err(err).Msg("Failed to update version transition status")
 							}
 						}
-					} else if resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
+					} else if resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
 						completed_at := time.Now()
 						applied_state := types.TransactionStateApplied
 						applied_description := "Update applied successfully"
@@ -227,14 +228,16 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *v1.Activate
 		if lastError != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("Operation failed: %v", lastError))
 		}
-		return &v1.ActivateResponse{
+		return &grpc_southbound.ActivateResponse{
 			Retcode: retcode,
 		}, nil
 	}
 }
 
-func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateNodeRequest) (*v1.ActivateResponse, error) {
+func (sb *SouthboundService) ActivateNode(ctx context.Context, req *grpc_southbound.ActivateNodeRequest) (*grpc_southbound.ActivateResponse, error) {
 	// Add timeout to context
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute) // Longer timeout for node updates
+	defer cancel()
 
 	// Check arguments
 	if req.SerialNumber == "" || req.VersionSetId == "" {
@@ -278,9 +281,9 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 	defer conn.Close()
 
 	// Create the node update request with proper transaction ID type
-	update := &v1.NodeUpdate{
+	update := &grpc_controlplane.NodeUpdate{
 		NodeUpdateItem: nodeUpdate,
-		Transaction: &v1.Transaction{
+		Transaction: &grpc_controlplane.Transaction{
 			TxId: int32(tx),
 		},
 	}
@@ -322,15 +325,15 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 
 				// Log transaction
 				var state types.TransactionState
-				if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
+				if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
 					state = types.TransactionStateApplied
-				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_ERROR {
+				} else if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR {
 					state = types.TransactionStateError
-				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLY_REQ {
+				} else if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLY_REQ {
 					state = types.TransactionStateApplicable
-				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLICABLE {
+				} else if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLICABLE {
 					state = types.TransactionStateApplicable
-				} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_PUBLISHED {
+				} else if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_PUBLISHED {
 					state = types.TransactionStatePublished
 				}
 
@@ -347,10 +350,10 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 				}
 
 				// Handle terminal states
-				if stream_resp.UpdateState == v1.UpdateState_UPDATE_ERROR || stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
-					if stream_resp.UpdateState == v1.UpdateState_UPDATE_ERROR {
+				if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR || stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
+					if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR {
 						retcode = -1
-					} else if stream_resp.UpdateState == v1.UpdateState_UPDATE_APPLIED {
+					} else if stream_resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
 						retcode = 0
 					}
 
@@ -385,7 +388,7 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *v1.ActivateN
 		if lastError != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("Operation failed: %v", lastError))
 		}
-		return &v1.ActivateResponse{
+		return &grpc_southbound.ActivateResponse{
 			Retcode: retcode,
 		}, nil
 	}
@@ -397,7 +400,7 @@ func (sb *SouthboundService) logTransactionFailure(ctx context.Context, tx int, 
 		TransactionID: tx,
 		NodeSerial:    serialNumber,
 		VersionSetID:  versionSetID,
-		State:         types.TransactionState(v1.UpdateState_UPDATE_ERROR),
+		State:         types.TransactionState(grpc_controlplane.UpdateState_UPDATE_ERROR),
 	})
 	return err
 }

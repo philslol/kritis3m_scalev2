@@ -177,3 +177,16 @@ type VersionTransition struct {
 	CreatedBy             string                  `json:"created_by"`
 	Metadata              []byte                  `json:"metadata"`
 }
+
+type EnrollCallRequest struct {
+	ID                 int        `json:"id"`
+	EstSerialNumber    string     `json:"est_serial_number"`
+	SerialNumber       string     `json:"serial_number"`
+	Organization       string     `json:"organization"`
+	IssuedAt           *time.Time `json:"issued_at"`
+	ExpiresAt          *time.Time `json:"expires_at"`
+	SignatureAlgorithm string     `json:"signature_algorithm"`
+	Plane              string     `json:"plane"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}

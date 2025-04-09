@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -87,7 +87,7 @@ var createHwConfigCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.CreateHardwareConfigRequest{
+		request := &grpc_southbound.CreateHardwareConfigRequest{
 			Device:           device,
 			IpCidr:           ipCidr,
 			NodeSerialNumber: nodeSerial,
@@ -123,19 +123,19 @@ var readHwConfigCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var request *v1.GetHardwareConfigRequest
+		var request *grpc_southbound.GetHardwareConfigRequest
 		if id != 0 {
 			//create GetHardwareConfigRequest_Id
-			request = &v1.GetHardwareConfigRequest{
-				Query: &v1.GetHardwareConfigRequest_Id{
+			request = &grpc_southbound.GetHardwareConfigRequest{
+				Query: &grpc_southbound.GetHardwareConfigRequest_Id{
 					Id: id,
 				},
 			}
 		} else if versionSetID != "" && nodeSerial != "" {
 			//create GetHardwareConfigRequest_HardwareConfigQuery
-			request = &v1.GetHardwareConfigRequest{
-				Query: &v1.GetHardwareConfigRequest_HardwareConfigQuery{
-					HardwareConfigQuery: &v1.HardwareConfigNameQuery{
+			request = &grpc_southbound.GetHardwareConfigRequest{
+				Query: &grpc_southbound.GetHardwareConfigRequest_HardwareConfigQuery{
+					HardwareConfigQuery: &grpc_southbound.HardwareConfigNameQuery{
 						VersionSetId:     versionSetID,
 						NodeSerialNumber: nodeSerial,
 					},
@@ -143,8 +143,8 @@ var readHwConfigCmd = &cobra.Command{
 			}
 		} else if versionSetID != "" && nodeSerial == "" {
 			//create GetHardwareConfigRequest_VersionSetId
-			request = &v1.GetHardwareConfigRequest{
-				Query: &v1.GetHardwareConfigRequest_VersionSetId{
+			request = &grpc_southbound.GetHardwareConfigRequest{
+				Query: &grpc_southbound.GetHardwareConfigRequest_VersionSetId{
 					VersionSetId: versionSetID,
 				},
 			}
@@ -183,7 +183,7 @@ var updateHwConfigCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.UpdateHardwareConfigRequest{
+		request := &grpc_southbound.UpdateHardwareConfigRequest{
 			Id:           id,
 			Device:       &device,
 			IpCidr:       &ipCidr,
@@ -215,7 +215,7 @@ var deleteHwConfigCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.DeleteHardwareConfigRequest{
+		request := &grpc_southbound.DeleteHardwareConfigRequest{
 			Id: id,
 		}
 
@@ -244,8 +244,8 @@ var listHwConfigsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetHardwareConfigRequest{
-			Query: &v1.GetHardwareConfigRequest_VersionSetId{
+		request := &grpc_southbound.GetHardwareConfigRequest{
+			Query: &grpc_southbound.GetHardwareConfigRequest_VersionSetId{
 				VersionSetId: versionSetID,
 			},
 		}
@@ -265,7 +265,7 @@ var listHwConfigsCmd = &cobra.Command{
 	},
 }
 
-func PrintHardwareConfigAsTable(configs []*v1.HardwareConfig) {
+func PrintHardwareConfigAsTable(configs []*grpc_southbound.HardwareConfig) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "DEVICE\tIP CIDR\tNODE SERIAL\tVERSION SET ID\tCREATED BY")
 

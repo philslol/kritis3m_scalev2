@@ -9,10 +9,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/philslol/kritis3m_scalev2/control"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -24,7 +24,7 @@ const (
 	SocketWritePermissions  = 0o666
 )
 
-func getClient() (context.Context, v1.SouthboundClient, *grpc.ClientConn, context.CancelFunc, error) {
+func getClient() (context.Context, grpc_southbound.SouthboundClient, *grpc.ClientConn, context.CancelFunc, error) {
 	cfg, err := types.GetKritis3mScaleConfig()
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to load configuration while creating headscale instance: %w", err)
@@ -47,7 +47,7 @@ func getClient() (context.Context, v1.SouthboundClient, *grpc.ClientConn, contex
 		os.Exit(-1) // we get here if logging is suppressed (i.e., json output)
 	}
 
-	client := v1.NewSouthboundClient(conn)
+	client := grpc_southbound.NewSouthboundClient(conn)
 
 	return ctx, client, conn, cancel, nil
 }
@@ -213,7 +213,7 @@ func formatValue(v reflect.Value) string {
 }
 
 // Example usage for Node type
-func PrintNodesAsTable(nodes []*v1.Node) {
+func PrintNodesAsTable(nodes []*grpc_southbound.Node) {
 	columns := []TableColumn{
 		{Header: "ID", FieldPath: "Id"},
 		{Header: "SERIAL NUMBER", FieldPath: "SerialNumber"},
@@ -226,7 +226,7 @@ func PrintNodesAsTable(nodes []*v1.Node) {
 }
 
 // Example usage for VersionSet type using the generic function
-func PrintVersionSetsAsTableGeneric(versionSets []*v1.VersionSet) {
+func PrintVersionSetsAsTableGeneric(versionSets []*grpc_southbound.VersionSet) {
 	columns := []TableColumn{
 		{Header: "ID", FieldPath: "Id"},
 		{Header: "NAME", FieldPath: "Name"},

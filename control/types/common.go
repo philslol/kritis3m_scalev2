@@ -3,7 +3,7 @@ package types
 import (
 	"errors"
 
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 )
 
 const (
@@ -48,9 +48,9 @@ const (
 var ErrCannotParsePrefix = errors.New("cannot parse prefix")
 
 // ASLKeyExchangeMethodToProto converts a string ASL key exchange method to the proto enum
-func ASLKeyExchangeMethodToProto(method string) v1.AslKeyexchangeMethod {
-	if val, ok := v1.AslKeyexchangeMethod_value[method]; ok {
-		return v1.AslKeyexchangeMethod(val)
+func ASLKeyExchangeMethodToProto(method string) grpc_southbound.AslKeyexchangeMethod {
+	if val, ok := grpc_southbound.AslKeyexchangeMethod_value[method]; ok {
+		return grpc_southbound.AslKeyexchangeMethod(val)
 	}
-	return v1.AslKeyexchangeMethod_ASL_KEX_DEFAULT
+	return grpc_southbound.AslKeyexchangeMethod_ASL_KEX_DEFAULT
 }

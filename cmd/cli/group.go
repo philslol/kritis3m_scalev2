@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -87,7 +87,7 @@ var createGroupCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.CreateGroupRequest{
+		request := &grpc_southbound.CreateGroupRequest{
 			Name:               name,
 			LogLevel:           logLevel,
 			VersionSetId:       versionSetID,
@@ -106,7 +106,7 @@ var createGroupCmd = &cobra.Command{
 			return nil
 		}
 
-		PrintGroupResponseAsTable([]*v1.GroupResponse{rsp})
+		PrintGroupResponseAsTable([]*grpc_southbound.GroupResponse{rsp})
 		return nil
 	},
 }
@@ -130,19 +130,19 @@ var readGroupCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var request *v1.GetGroupRequest
+		var request *grpc_southbound.GetGroupRequest
 		if id != 0 {
-			request = &v1.GetGroupRequest{
-				Query: &v1.GetGroupRequest_Id{
+			request = &grpc_southbound.GetGroupRequest{
+				Query: &grpc_southbound.GetGroupRequest_Id{
 					Id: id,
 				},
 				IncludeEndpoints: includeEndpoints,
 			}
 
 		} else if versionSetID != "" && name != "" {
-			request = &v1.GetGroupRequest{
-				Query: &v1.GetGroupRequest_GroupQuery{
-					GroupQuery: &v1.GroupNameQuery{
+			request = &grpc_southbound.GetGroupRequest{
+				Query: &grpc_southbound.GetGroupRequest_GroupQuery{
+					GroupQuery: &grpc_southbound.GroupNameQuery{
 						VersionSetId: versionSetID,
 						GroupName:    name,
 					},
@@ -161,7 +161,7 @@ var readGroupCmd = &cobra.Command{
 			return nil
 		}
 
-		PrintGroupResponseAsTable([]*v1.GroupResponse{rsp})
+		PrintGroupResponseAsTable([]*grpc_southbound.GroupResponse{rsp})
 		return nil
 	},
 }
@@ -187,17 +187,17 @@ var updateGroupCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var request *v1.UpdateGroupRequest
+		var request *grpc_southbound.UpdateGroupRequest
 		if id != 0 {
-			request = &v1.UpdateGroupRequest{
-				Query: &v1.UpdateGroupRequest_Id{
+			request = &grpc_southbound.UpdateGroupRequest{
+				Query: &grpc_southbound.UpdateGroupRequest_Id{
 					Id: id,
 				},
 			}
 		} else if versionSetID != "" && name != "" {
-			request = &v1.UpdateGroupRequest{
-				Query: &v1.UpdateGroupRequest_GroupQuery{
-					GroupQuery: &v1.GroupNameQuery{
+			request = &grpc_southbound.UpdateGroupRequest{
+				Query: &grpc_southbound.UpdateGroupRequest_GroupQuery{
+					GroupQuery: &grpc_southbound.GroupNameQuery{
 						VersionSetId: versionSetID,
 						GroupName:    name,
 					},
@@ -243,7 +243,7 @@ var deleteGroupCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.DeleteGroupRequest{
+		request := &grpc_southbound.DeleteGroupRequest{
 			Id: id,
 		}
 
@@ -264,7 +264,7 @@ var listGroupsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		versionSetID, _ := cmd.Flags().GetString("version-number")
 		includeEndpoints, _ := cmd.Flags().GetBool("include")
-		var request *v1.ListGroupsRequest
+		var request *grpc_southbound.ListGroupsRequest
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -274,12 +274,12 @@ var listGroupsCmd = &cobra.Command{
 		defer conn.Close()
 
 		if versionSetID != "" {
-			request = &v1.ListGroupsRequest{
+			request = &grpc_southbound.ListGroupsRequest{
 				VersionSetId:     &versionSetID,
 				IncludeEndpoints: includeEndpoints,
 			}
 		} else {
-			request = &v1.ListGroupsRequest{
+			request = &grpc_southbound.ListGroupsRequest{
 				IncludeEndpoints: includeEndpoints,
 			}
 		}
@@ -299,7 +299,7 @@ var listGroupsCmd = &cobra.Command{
 	},
 }
 
-func PrintGroupResponseAsTable(groups []*v1.GroupResponse) {
+func PrintGroupResponseAsTable(groups []*grpc_southbound.GroupResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "NAME\tVERSION SET ID\tLOG LEVEL\tENDPOINT CONFIG\tLEGACY CONFIG\tID")
 

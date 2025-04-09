@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -104,19 +104,19 @@ var createProxyCmd = &cobra.Command{
 		defer conn.Close()
 
 		// Convert proxy type string to enum value
-		proxyTypeEnum := v1.ProxyType_FORWARD // Default to FORWARD
+		proxyTypeEnum := grpc_southbound.ProxyType_FORWARD // Default to FORWARD
 		switch strings.ToUpper(proxyType) {
 		case "FORWARD":
-			proxyTypeEnum = v1.ProxyType_FORWARD
+			proxyTypeEnum = grpc_southbound.ProxyType_FORWARD
 		case "REVERSE":
-			proxyTypeEnum = v1.ProxyType_REVERSE
+			proxyTypeEnum = grpc_southbound.ProxyType_REVERSE
 		case "TLSTLS":
-			proxyTypeEnum = v1.ProxyType_TLSTLS
+			proxyTypeEnum = grpc_southbound.ProxyType_TLSTLS
 		default:
 			return fmt.Errorf("invalid proxy type: %s", proxyType)
 		}
 
-		request := &v1.CreateProxyRequest{
+		request := &grpc_southbound.CreateProxyRequest{
 			NodeSerialNumber:   nodeSerial,
 			GroupName:          groupName,
 			State:              state,
@@ -156,26 +156,26 @@ var readProxyCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetProxyRequest{}
+		request := &grpc_southbound.GetProxyRequest{}
 
 		if id != 0 {
-			request.Query = &v1.GetProxyRequest_Id{Id: id}
+			request.Query = &grpc_southbound.GetProxyRequest_Id{Id: id}
 		} else if versionSetID != "" && name != "" {
-			request.Query = &v1.GetProxyRequest_NameQuery{
-				NameQuery: &v1.ProxyNameQuery{
+			request.Query = &grpc_southbound.GetProxyRequest_NameQuery{
+				NameQuery: &grpc_southbound.ProxyNameQuery{
 					VersionSetId: versionSetID,
 					Name:         name,
 				},
 			}
 		} else if versionSetID != "" && serial != "" {
-			request.Query = &v1.GetProxyRequest_SerialQuery{
-				SerialQuery: &v1.ProxySerialQuery{
+			request.Query = &grpc_southbound.GetProxyRequest_SerialQuery{
+				SerialQuery: &grpc_southbound.ProxySerialQuery{
 					VersionSetId: versionSetID,
 					Serial:       serial,
 				},
 			}
 		} else if versionSetID != "" {
-			request.Query = &v1.GetProxyRequest_VersionSetId{
+			request.Query = &grpc_southbound.GetProxyRequest_VersionSetId{
 				VersionSetId: versionSetID,
 			}
 		}
@@ -215,17 +215,17 @@ var updateProxyCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.UpdateProxyRequest{
+		request := &grpc_southbound.UpdateProxyRequest{
 			State:              &state,
 			ServerEndpointAddr: &serverEndpoint,
 			ClientEndpointAddr: &clientEndpoint,
 		}
 
 		if id != 0 {
-			request.Query = &v1.UpdateProxyRequest_Id{Id: id}
+			request.Query = &grpc_southbound.UpdateProxyRequest_Id{Id: id}
 		} else if versionSetID != "" && name != "" {
-			request.Query = &v1.UpdateProxyRequest_NameQuery{
-				NameQuery: &v1.ProxyNameQuery{
+			request.Query = &grpc_southbound.UpdateProxyRequest_NameQuery{
+				NameQuery: &grpc_southbound.ProxyNameQuery{
 					VersionSetId: versionSetID,
 					Name:         name,
 				},
@@ -235,14 +235,14 @@ var updateProxyCmd = &cobra.Command{
 		}
 
 		if proxyType != "" {
-			var pt v1.ProxyType
+			var pt grpc_southbound.ProxyType
 			switch strings.ToUpper(proxyType) {
 			case "FORWARD":
-				pt = v1.ProxyType_FORWARD
+				pt = grpc_southbound.ProxyType_FORWARD
 			case "REVERSE":
-				pt = v1.ProxyType_REVERSE
+				pt = grpc_southbound.ProxyType_REVERSE
 			case "TLSTLS":
-				pt = v1.ProxyType_TLSTLS
+				pt = grpc_southbound.ProxyType_TLSTLS
 			default:
 				return fmt.Errorf("invalid proxy type: %s", proxyType)
 			}
@@ -274,7 +274,7 @@ var deleteProxyCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.DeleteProxyRequest{
+		request := &grpc_southbound.DeleteProxyRequest{
 			Id: id,
 		}
 
@@ -303,10 +303,10 @@ var listProxiesCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetProxyRequest{}
+		request := &grpc_southbound.GetProxyRequest{}
 		if versionSetID != "" {
-			request.Query = &v1.GetProxyRequest_NameQuery{
-				NameQuery: &v1.ProxyNameQuery{
+			request.Query = &grpc_southbound.GetProxyRequest_NameQuery{
+				NameQuery: &grpc_southbound.ProxyNameQuery{
 					VersionSetId: versionSetID,
 				},
 			}
@@ -326,7 +326,7 @@ var listProxiesCmd = &cobra.Command{
 	},
 }
 
-func PrintProxiesAsTable(proxies []*v1.Proxy) {
+func PrintProxiesAsTable(proxies []*grpc_southbound.Proxy) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "ID\tNODE SERIAL\tGROUP NAME\tSTATE\tPROXY TYPE\tSERVER ENDPOINT\tCLIENT ENDPOINT\tVERSION SET ID\tCREATED BY\tNAME")
 

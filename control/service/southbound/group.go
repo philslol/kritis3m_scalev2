@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func (s *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroupRequest) (*v1.GroupResponse, error) {
+func (s *SouthboundService) CreateGroup(ctx context.Context, req *grpc_southbound.CreateGroupRequest) (*grpc_southbound.GroupResponse, error) {
 	group := &types.Group{
 		Name:               req.GetName(),
 		LogLevel:           int(req.GetLogLevel()),
@@ -30,17 +30,17 @@ func (s *SouthboundService) CreateGroup(ctx context.Context, req *v1.CreateGroup
 	return convertGroupToResponse(group), nil
 }
 
-func (s *SouthboundService) GetGroup(ctx context.Context, req *v1.GetGroupRequest) (*v1.GroupResponse, error) {
+func (s *SouthboundService) GetGroup(ctx context.Context, req *grpc_southbound.GetGroupRequest) (*grpc_southbound.GroupResponse, error) {
 	var group *types.Group
 	var err error
 
 	switch req.Query.(type) {
-	case *v1.GetGroupRequest_Id:
+	case *grpc_southbound.GetGroupRequest_Id:
 		group, err = s.db.GetByID(ctx, int(req.GetId()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get group: %v", err)
 		}
-	case *v1.GetGroupRequest_GroupQuery:
+	case *grpc_southbound.GetGroupRequest_GroupQuery:
 		versionID := uuid.FromStringOrNil(req.GetGroupQuery().GetVersionSetId())
 		name := req.GetGroupQuery().GetGroupName()
 		group, err = s.db.GetGroupByName(ctx, name, &versionID)
@@ -53,8 +53,8 @@ func (s *SouthboundService) GetGroup(ctx context.Context, req *v1.GetGroupReques
 	return convertGroupToResponse(group), nil
 }
 
-func (s *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRequest) (*v1.ListGroupsResponse, error) {
-	var response *v1.ListGroupsResponse
+func (s *SouthboundService) ListGroups(ctx context.Context, req *grpc_southbound.ListGroupsRequest) (*grpc_southbound.ListGroupsResponse, error) {
+	var response *grpc_southbound.ListGroupsResponse
 	var versionSetID uuid.UUID
 	var groups []*types.Group
 	var err error
@@ -70,8 +70,8 @@ func (s *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRe
 		return nil, status.Errorf(codes.Internal, "failed to list groups: %v", err)
 	}
 
-	response = &v1.ListGroupsResponse{
-		Groups: make([]*v1.GroupResponse, len(groups)),
+	response = &grpc_southbound.ListGroupsResponse{
+		Groups: make([]*grpc_southbound.GroupResponse, len(groups)),
 	}
 
 	for i, group := range groups {
@@ -81,15 +81,15 @@ func (s *SouthboundService) ListGroups(ctx context.Context, req *v1.ListGroupsRe
 	return response, nil
 }
 
-func (s *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroupRequest) (*empty.Empty, error) {
+func (s *SouthboundService) UpdateGroup(ctx context.Context, req *grpc_southbound.UpdateGroupRequest) (*empty.Empty, error) {
 	updates := make(map[string]interface{})
 
 	var where_string string
 	switch req.Query.(type) {
-	case *v1.UpdateGroupRequest_Id:
+	case *grpc_southbound.UpdateGroupRequest_Id:
 		updates["id"] = int(req.GetId())
 		where_string = fmt.Sprintf("id = %d", req.GetId())
-	case *v1.UpdateGroupRequest_GroupQuery:
+	case *grpc_southbound.UpdateGroupRequest_GroupQuery:
 		name := req.GetGroupQuery().GetGroupName()
 		versionID := uuid.FromStringOrNil(req.GetGroupQuery().GetVersionSetId())
 		where_string = fmt.Sprintf("name = %s AND version_set_id = %s", name, versionID)
@@ -116,7 +116,7 @@ func (s *SouthboundService) UpdateGroup(ctx context.Context, req *v1.UpdateGroup
 	return &empty.Empty{}, nil
 }
 
-func (s *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroupRequest) (*empty.Empty, error) {
+func (s *SouthboundService) DeleteGroup(ctx context.Context, req *grpc_southbound.DeleteGroupRequest) (*empty.Empty, error) {
 	if err := s.db.Delete(ctx, "groups", "id", fmt.Sprintf("%d", req.GetId())); err != nil {
 		return nil, fmt.Errorf("failed to delete group: %v", err)
 	}
@@ -124,8 +124,8 @@ func (s *SouthboundService) DeleteGroup(ctx context.Context, req *v1.DeleteGroup
 	return &empty.Empty{}, nil
 }
 
-func convertGroupToResponse(dbGroup *types.Group) *v1.GroupResponse {
-	protoGroup := &v1.Group{
+func convertGroupToResponse(dbGroup *types.Group) *grpc_southbound.GroupResponse {
+	protoGroup := &grpc_southbound.Group{
 		Id:                 int32(dbGroup.ID),
 		Name:               dbGroup.Name,
 		LogLevel:           int32(dbGroup.LogLevel),
@@ -134,7 +134,7 @@ func convertGroupToResponse(dbGroup *types.Group) *v1.GroupResponse {
 		VersionSetId:       dbGroup.VersionSetID.String(),
 	}
 
-	return &v1.GroupResponse{
+	return &grpc_southbound.GroupResponse{
 		Group: protoGroup,
 	}
 }

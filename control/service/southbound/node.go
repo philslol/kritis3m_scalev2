@@ -11,11 +11,11 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 )
 
-func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesRequest) (*v1.ListNodesResponse, error) {
+func (sb *SouthboundService) ListNodes(ctx context.Context, req *grpc_southbound.ListNodesRequest) (*grpc_southbound.ListNodesResponse, error) {
 	var versionSetID *uuid.UUID
 	if req.GetVersionSetId() != "" {
 		id, err := uuid.FromString(req.GetVersionSetId())
@@ -31,13 +31,13 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 		return nil, status.Error(codes.Internal, "failed to list nodes")
 	}
 
-	response := v1.ListNodesResponse{
-		Nodes: make([]*v1.NodeResponse, len(nodes)),
+	response := grpc_southbound.ListNodesResponse{
+		Nodes: make([]*grpc_southbound.NodeResponse, len(nodes)),
 	}
 
 	for i, node := range nodes {
-		nodeResponse := &v1.NodeResponse{
-			Node: &v1.Node{
+		nodeResponse := &grpc_southbound.NodeResponse{
+			Node: &grpc_southbound.Node{
 				Id:           int32(node.ID),
 				SerialNumber: node.SerialNumber,
 				NetworkIndex: int32(node.NetworkIndex),
@@ -58,9 +58,9 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 			if err != nil {
 				log.Warn().Err(err).Msg("failed to get hardware configs")
 			} else {
-				nodeResponse.HwConfigs = make([]*v1.HardwareConfig, len(hwConfigs))
+				nodeResponse.HwConfigs = make([]*grpc_southbound.HardwareConfig, len(hwConfigs))
 				for i, config := range hwConfigs {
-					nodeResponse.HwConfigs[i] = &v1.HardwareConfig{
+					nodeResponse.HwConfigs[i] = &grpc_southbound.HardwareConfig{
 						Id:               int32(config.ID),
 						NodeSerialNumber: config.NodeSerial,
 						Device:           config.Device,
@@ -74,15 +74,15 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 			if err != nil {
 				log.Warn().Err(err).Msg("failed to get proxies")
 			} else {
-				nodeResponse.Proxy = make([]*v1.Proxy, len(proxies))
+				nodeResponse.Proxy = make([]*grpc_southbound.Proxy, len(proxies))
 				for i, proxy := range proxies {
-					nodeResponse.Proxy[i] = &v1.Proxy{
+					nodeResponse.Proxy[i] = &grpc_southbound.Proxy{
 						Id:                 int32(proxy.ID),
 						Name:               proxy.Name,
 						NodeSerialNumber:   proxy.NodeSerial,
 						GroupName:          proxy.GroupName,
 						State:              proxy.State,
-						ProxyType:          v1.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
+						ProxyType:          grpc_southbound.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
 						ServerEndpointAddr: proxy.ServerEndpointAddr,
 						ClientEndpointAddr: proxy.ClientEndpointAddr,
 						VersionSetId:       proxy.VersionSetID.String(),
@@ -95,7 +95,7 @@ func (sb *SouthboundService) ListNodes(ctx context.Context, req *v1.ListNodesReq
 	return &response, nil
 }
 
-func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeRequest) (*v1.NodeResponse, error) {
+func (sb *SouthboundService) CreateNode(ctx context.Context, req *grpc_southbound.CreateNodeRequest) (*grpc_southbound.NodeResponse, error) {
 	versionSetID, err := uuid.FromString(req.GetVersionSetId())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
@@ -115,8 +115,8 @@ func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeR
 		return nil, status.Error(codes.Internal, "failed to create node")
 	}
 
-	return &v1.NodeResponse{
-		Node: &v1.Node{
+	return &grpc_southbound.NodeResponse{
+		Node: &grpc_southbound.Node{
 			Id:           int32(createdNode.ID),
 			SerialNumber: createdNode.SerialNumber,
 			NetworkIndex: int32(createdNode.NetworkIndex),
@@ -126,14 +126,14 @@ func (sb *SouthboundService) CreateNode(ctx context.Context, req *v1.CreateNodeR
 	}, nil
 }
 
-func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest) (*v1.NodeResponse, error) {
+func (sb *SouthboundService) GetNode(ctx context.Context, req *grpc_southbound.GetNodeRequest) (*grpc_southbound.NodeResponse, error) {
 	var node *types.Node
 	var err error
 
 	switch query := req.GetQuery().(type) {
-	case *v1.GetNodeRequest_Id:
+	case *grpc_southbound.GetNodeRequest_Id:
 		node, err = sb.db.GetNodebyID(ctx, int(query.Id))
-	case *v1.GetNodeRequest_NodeQuery:
+	case *grpc_southbound.GetNodeRequest_NodeQuery:
 		versionSetID, err := uuid.FromString(query.NodeQuery.GetVersionSetId())
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
@@ -151,8 +151,8 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 		return nil, status.Error(codes.Internal, "failed to get node")
 	}
 
-	response := &v1.NodeResponse{
-		Node: &v1.Node{
+	response := &grpc_southbound.NodeResponse{
+		Node: &grpc_southbound.Node{
 			Id:           int32(node.ID),
 			SerialNumber: node.SerialNumber,
 			NetworkIndex: int32(node.NetworkIndex),
@@ -171,9 +171,9 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to get hardware configs")
 		} else {
-			response.HwConfigs = make([]*v1.HardwareConfig, len(hwConfigs))
+			response.HwConfigs = make([]*grpc_southbound.HardwareConfig, len(hwConfigs))
 			for i, config := range hwConfigs {
-				response.HwConfigs[i] = &v1.HardwareConfig{
+				response.HwConfigs[i] = &grpc_southbound.HardwareConfig{
 					Id:               int32(config.ID),
 					NodeSerialNumber: config.NodeSerial,
 					Device:           config.Device,
@@ -187,15 +187,15 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to get proxies")
 		} else {
-			response.Proxy = make([]*v1.Proxy, len(proxies))
+			response.Proxy = make([]*grpc_southbound.Proxy, len(proxies))
 			for i, proxy := range proxies {
-				response.Proxy[i] = &v1.Proxy{
+				response.Proxy[i] = &grpc_southbound.Proxy{
 					Id:                 int32(proxy.ID),
 					Name:               proxy.Name,
 					NodeSerialNumber:   proxy.NodeSerial,
 					GroupName:          proxy.GroupName,
 					State:              proxy.State,
-					ProxyType:          v1.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
+					ProxyType:          grpc_southbound.ProxyType(types.ProxyTypeMap[proxy.ProxyType]),
 					ServerEndpointAddr: proxy.ServerEndpointAddr,
 					ClientEndpointAddr: proxy.ClientEndpointAddr,
 					VersionSetId:       proxy.VersionSetID.String(),
@@ -207,7 +207,7 @@ func (sb *SouthboundService) GetNode(ctx context.Context, req *v1.GetNodeRequest
 	return response, nil
 }
 
-func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeRequest) (*emptypb.Empty, error) {
+func (sb *SouthboundService) UpdateNode(ctx context.Context, req *grpc_southbound.UpdateNodeRequest) (*emptypb.Empty, error) {
 
 	updates := make(map[string]interface{})
 	if req.GetNetworkIndex() != 0 {
@@ -221,7 +221,7 @@ func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeR
 	}
 
 	switch query := req.GetQuery().(type) {
-	case *v1.UpdateNodeRequest_Id:
+	case *grpc_southbound.UpdateNodeRequest_Id:
 		where_string := fmt.Sprintf("id = %d", req.GetId())
 		err := sb.db.UpdateWhere(ctx, "nodes", updates, where_string)
 		if err != nil {
@@ -229,7 +229,7 @@ func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeR
 			return nil, status.Error(codes.Internal, "failed to update node")
 		}
 
-	case *v1.UpdateNodeRequest_NodeQuery:
+	case *grpc_southbound.UpdateNodeRequest_NodeQuery:
 		versionSetID, err := uuid.FromString(query.NodeQuery.GetVersionSetId())
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
@@ -249,7 +249,7 @@ func (sb *SouthboundService) UpdateNode(ctx context.Context, req *v1.UpdateNodeR
 	return &emptypb.Empty{}, nil
 }
 
-func (sb *SouthboundService) DeleteNode(ctx context.Context, req *v1.DeleteNodeRequest) (*emptypb.Empty, error) {
+func (sb *SouthboundService) DeleteNode(ctx context.Context, req *grpc_southbound.DeleteNodeRequest) (*emptypb.Empty, error) {
 	versionSetID, err := uuid.FromString(req.GetVersionSetId())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)

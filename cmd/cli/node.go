@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -91,7 +91,7 @@ var createNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.CreateNodeRequest{
+		request := &grpc_southbound.CreateNodeRequest{
 			SerialNumber: serialNumber,
 			NetworkIndex: networkIndex,
 			Locality:     &locality,
@@ -134,19 +134,19 @@ var readNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var request *v1.GetNodeRequest
+		var request *grpc_southbound.GetNodeRequest
 
 		if id != 0 {
-			request = &v1.GetNodeRequest{
-				Query: &v1.GetNodeRequest_Id{
+			request = &grpc_southbound.GetNodeRequest{
+				Query: &grpc_southbound.GetNodeRequest_Id{
 					Id: id,
 				},
 				Include: &include,
 			}
 		} else {
-			request = &v1.GetNodeRequest{
-				Query: &v1.GetNodeRequest_NodeQuery{
-					NodeQuery: &v1.NodeNameQuery{
+			request = &grpc_southbound.GetNodeRequest{
+				Query: &grpc_southbound.GetNodeRequest_NodeQuery{
+					NodeQuery: &grpc_southbound.NodeNameQuery{
 						SerialNumber: serialNumber,
 						VersionSetId: versionSetID,
 					},
@@ -165,7 +165,7 @@ var readNodeCmd = &cobra.Command{
 			return nil
 		}
 
-		PrintNodeResponseAsTable([]*v1.NodeResponse{rsp})
+		PrintNodeResponseAsTable([]*grpc_southbound.NodeResponse{rsp})
 		return nil
 	},
 }
@@ -189,18 +189,18 @@ var updateNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var request *v1.UpdateNodeRequest
+		var request *grpc_southbound.UpdateNodeRequest
 
 		if id != 0 {
-			request = &v1.UpdateNodeRequest{
-				Query: &v1.UpdateNodeRequest_Id{
+			request = &grpc_southbound.UpdateNodeRequest{
+				Query: &grpc_southbound.UpdateNodeRequest_Id{
 					Id: id,
 				},
 			}
 		} else {
-			request = &v1.UpdateNodeRequest{
-				Query: &v1.UpdateNodeRequest_NodeQuery{
-					NodeQuery: &v1.NodeNameQuery{
+			request = &grpc_southbound.UpdateNodeRequest{
+				Query: &grpc_southbound.UpdateNodeRequest_NodeQuery{
+					NodeQuery: &grpc_southbound.NodeNameQuery{
 						VersionSetId: versionSetID,
 						SerialNumber: serialNumber,
 					},
@@ -237,7 +237,7 @@ var deleteNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.DeleteNodeRequest{
+		request := &grpc_southbound.DeleteNodeRequest{
 			SerialNumber: serialNumber,
 			VersionSetId: versionSetID,
 		}
@@ -268,7 +268,7 @@ var listNodesCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListNodesRequest{
+		request := &grpc_southbound.ListNodesRequest{
 			VersionSetId: &versionSetID,
 			Include:      &include,
 		}
@@ -288,7 +288,7 @@ var listNodesCmd = &cobra.Command{
 	},
 }
 
-func PrintNodeResponseAsTable(nodes []*v1.NodeResponse) {
+func PrintNodeResponseAsTable(nodes []*grpc_southbound.NodeResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "ID\tSERIAL NUMBER\tNETWORK INDEX\tLOCALITY\tVERSION SET ID\tLAST SEEN")
 

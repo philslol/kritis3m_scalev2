@@ -8,10 +8,12 @@ import (
 	"syscall"
 	"time"
 
+	grpc_control_plane "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/control_plane"
+	grpc_est "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/est"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/philslol/kritis3m_scalev2/control/db"
 	"github.com/philslol/kritis3m_scalev2/control/service/southbound"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -106,8 +108,9 @@ func (scale *Kritis3m_Scale) Serve() {
 		log.Fatal().Err(err)
 	}
 
-	v1.RegisterSouthboundServer(s, sb)
-	v1.RegisterControlPlaneServer(s, control_plane)
+	grpc_southbound.RegisterSouthboundServer(s, sb)
+	grpc_est.RegisterEstServiceServer(s, sb)
+	grpc_control_plane.RegisterControlPlaneServer(s, control_plane)
 
 	go func() {
 		log.Info().Msgf("Server listening at %v", lis.Addr())

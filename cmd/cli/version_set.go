@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -67,7 +67,7 @@ var createVersionSetCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.CreateVersionSetRequest{
+		request := &grpc_southbound.CreateVersionSetRequest{
 			Name:        name,
 			Description: description,
 			CreatedBy:   createdBy,
@@ -98,7 +98,7 @@ var readVersionSetCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetVersionSetRequest{
+		request := &grpc_southbound.GetVersionSetRequest{
 			Id: id,
 		}
 
@@ -112,7 +112,7 @@ var readVersionSetCmd = &cobra.Command{
 			return nil
 		}
 
-		PrintVersionSetsAsTable([]*v1.VersionSet{rsp.GetVersionSet()})
+		PrintVersionSetsAsTable([]*grpc_southbound.VersionSet{rsp.GetVersionSet()})
 		return nil
 	},
 }
@@ -134,7 +134,7 @@ var updateVersionSetCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.UpdateVersionSetRequest{
+		request := &grpc_southbound.UpdateVersionSetRequest{
 			Id:          id,
 			Name:        name,
 			Description: description,
@@ -165,7 +165,7 @@ var deleteVersionSetCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.DeleteVersionSetRequest{
+		request := &grpc_southbound.DeleteVersionSetRequest{
 			Id: id,
 		}
 
@@ -194,10 +194,10 @@ var listVersionSetsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListVersionSetsRequest{}
+		request := &grpc_southbound.ListVersionSetsRequest{}
 
 		if state != "" {
-			vs := v1.VersionState(v1.VersionState_value[state])
+			vs := grpc_southbound.VersionState(grpc_southbound.VersionState_value[state])
 			request.State = &vs
 		}
 
@@ -215,7 +215,7 @@ var listVersionSetsCmd = &cobra.Command{
 	},
 }
 
-func PrintVersionSetsAsTable(versionSets []*v1.VersionSet) {
+func PrintVersionSetsAsTable(versionSets []*grpc_southbound.VersionSet) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "ID\tNAME\tDESCRIPTION\tSTATE\tACTIVATED AT\tDISABLED AT\tCREATED BY")
 

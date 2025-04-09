@@ -167,6 +167,23 @@ CREATE TABLE IF NOT EXISTS proxies (
         REFERENCES groups(name, version_set_id)
 );
 
+CREATE TABLE IF NOT EXISTS enroll (
+    id SERIAL PRIMARY KEY,
+    est_serial_number VARCHAR(255),
+    serial_number TEXT NOT NULL CHECK (char_length(serial_number) <= 50),
+    organization VARCHAR(255),
+    issued_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    signature_algorithm VARCHAR(120),
+    plane VARCHAR(80),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_node_serial_number 
+        FOREIGN KEY (serial_number) 
+        REFERENCES nodes(serial_number)
+);
+
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_version_transitions_status ON version_transitions(status);
 CREATE INDEX IF NOT EXISTS idx_nodes_version ON nodes(version_set_id);

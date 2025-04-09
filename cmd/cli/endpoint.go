@@ -5,8 +5,8 @@ import (
 	"os"
 	"text/tabwriter"
 
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -83,7 +83,7 @@ var createEndpointCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.CreateEndpointConfigRequest{
+		request := &grpc_southbound.CreateEndpointConfigRequest{
 			Name:                 name,
 			MutualAuth:           mutualAuth,
 			NoEncryption:         noEncryption,
@@ -121,13 +121,13 @@ var readEndpointCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.GetEndpointConfigRequest{}
+		request := &grpc_southbound.GetEndpointConfigRequest{}
 		if id != 0 {
-			request.Query = &v1.GetEndpointConfigRequest_Id{Id: id}
+			request.Query = &grpc_southbound.GetEndpointConfigRequest_Id{Id: id}
 		} else if versionSetID != "" && name != "" {
-			request = &v1.GetEndpointConfigRequest{
-				Query: &v1.GetEndpointConfigRequest_EndpointConfigQuery{
-					EndpointConfigQuery: &v1.EndpointConfigNameQuery{
+			request = &grpc_southbound.GetEndpointConfigRequest{
+				Query: &grpc_southbound.GetEndpointConfigRequest_EndpointConfigQuery{
+					EndpointConfigQuery: &grpc_southbound.EndpointConfigNameQuery{
 						VersionSetId: versionSetID,
 						Name:         name,
 					},
@@ -147,7 +147,7 @@ var readEndpointCmd = &cobra.Command{
 			return nil
 		}
 
-		PrintEndpointsAsTable([]*v1.EndpointConfig{rsp})
+		PrintEndpointsAsTable([]*grpc_southbound.EndpointConfig{rsp})
 		return nil
 	},
 }
@@ -174,22 +174,22 @@ var updateEndpointCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var kexMethodEnum v1.AslKeyexchangeMethod
+		var kexMethodEnum grpc_southbound.AslKeyexchangeMethod
 		if kexMethod != "" {
-			kexMethodEnum = v1.AslKeyexchangeMethod(v1.AslKeyexchangeMethod_value[kexMethod])
+			kexMethodEnum = grpc_southbound.AslKeyexchangeMethod(grpc_southbound.AslKeyexchangeMethod_value[kexMethod])
 		}
 
-		request := &v1.UpdateEndpointConfigRequest{}
+		request := &grpc_southbound.UpdateEndpointConfigRequest{}
 		if id != 0 {
-			request.Query = &v1.UpdateEndpointConfigRequest_Id{Id: id}
+			request.Query = &grpc_southbound.UpdateEndpointConfigRequest_Id{Id: id}
 			request.Name = &name
 			request.MutualAuth = &mutualAuth
 			request.NoEncryption = &noEncryption
 			request.AslKeyExchangeMethod = &kexMethodEnum
 			request.Cipher = &cipher
 		} else if versionSetID != "" && name != "" {
-			request.Query = &v1.UpdateEndpointConfigRequest_EndpointConfigQuery{
-				EndpointConfigQuery: &v1.EndpointConfigNameQuery{
+			request.Query = &grpc_southbound.UpdateEndpointConfigRequest_EndpointConfigQuery{
+				EndpointConfigQuery: &grpc_southbound.EndpointConfigNameQuery{
 					VersionSetId: versionSetID,
 					Name:         name,
 				},
@@ -228,7 +228,7 @@ var deleteEndpointCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.DeleteEndpointConfigRequest{
+		request := &grpc_southbound.DeleteEndpointConfigRequest{
 			Id: id,
 		}
 
@@ -257,7 +257,7 @@ var listEndpointsCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		request := &v1.ListEndpointConfigsRequest{}
+		request := &grpc_southbound.ListEndpointConfigsRequest{}
 
 		if versionSetID != "" {
 			request.VersionSetId = &versionSetID
@@ -277,7 +277,7 @@ var listEndpointsCmd = &cobra.Command{
 	},
 }
 
-func PrintEndpointsAsTable(endpoints []*v1.EndpointConfig) {
+func PrintEndpointsAsTable(endpoints []*grpc_southbound.EndpointConfig) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "Version Set ID\t\t\tID\tNAME\tMUTUAL AUTH\tNO ENCRYPTION\tKEX METHOD\tCIPHER\tCREATED BY")
 

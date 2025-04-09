@@ -159,6 +159,7 @@ func (sm *StateManager) ResetDatabase() error {
 	drop type if exists transaction_state cascade;
 	drop table if exists proxies cascade;
 	drop table if exists nodes cascade;
+	drop table if exists enroll cascade;
 	drop table if exists groups cascade;
 	drop table if exists endpoint_configs cascade;
 	drop table if exists transactions cascade;

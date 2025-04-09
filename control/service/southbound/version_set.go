@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (sb *SouthboundService) CreateVersionSet(ctx context.Context, req *v1.CreateVersionSetRequest) (*v1.VersionSetResponse, error) {
+func (sb *SouthboundService) CreateVersionSet(ctx context.Context, req *grpc_southbound.CreateVersionSetRequest) (*grpc_southbound.VersionSetResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
 	}
@@ -53,7 +53,7 @@ func (sb *SouthboundService) CreateVersionSet(ctx context.Context, req *v1.Creat
 	return convertVersionSetToResponse(createdVS)
 }
 
-func (sb *SouthboundService) GetVersionSet(ctx context.Context, req *v1.GetVersionSetRequest) (*v1.VersionSetResponse, error) {
+func (sb *SouthboundService) GetVersionSet(ctx context.Context, req *grpc_southbound.GetVersionSetRequest) (*grpc_southbound.VersionSetResponse, error) {
 	if req == nil || req.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "version set ID is required")
 	}
@@ -75,13 +75,13 @@ func (sb *SouthboundService) GetVersionSet(ctx context.Context, req *v1.GetVersi
 	return convertVersionSetToResponse(vs)
 }
 
-func (sb *SouthboundService) ListVersionSets(ctx context.Context, req *v1.ListVersionSetsRequest) (*v1.ListVersionSetsResponse, error) {
+func (sb *SouthboundService) ListVersionSets(ctx context.Context, req *grpc_southbound.ListVersionSetsRequest) (*grpc_southbound.ListVersionSetsResponse, error) {
 	versionSets, err := sb.db.ListVersionSets(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to list version sets: %v", err)
 	}
 
-	response := &v1.ListVersionSetsResponse{}
+	response := &grpc_southbound.ListVersionSetsResponse{}
 	for _, vs := range versionSets {
 		vsResp, err := convertVersionSetToResponse(vs)
 		if err != nil {
@@ -93,7 +93,7 @@ func (sb *SouthboundService) ListVersionSets(ctx context.Context, req *v1.ListVe
 	return response, nil
 }
 
-func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *v1.UpdateVersionSetRequest) (*empty.Empty, error) {
+func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *grpc_southbound.UpdateVersionSetRequest) (*empty.Empty, error) {
 	if req == nil || req.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "version set ID is required")
 	}
@@ -131,7 +131,7 @@ func (sb *SouthboundService) UpdateVersionSet(ctx context.Context, req *v1.Updat
 	return &empty.Empty{}, nil
 }
 
-func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *v1.DeleteVersionSetRequest) (*empty.Empty, error) {
+func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *grpc_southbound.DeleteVersionSetRequest) (*empty.Empty, error) {
 	if req == nil || req.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "version set ID is required")
 	}
@@ -149,7 +149,7 @@ func (sb *SouthboundService) DeleteVersionSet(ctx context.Context, req *v1.Delet
 	return &empty.Empty{}, nil
 }
 
-func (sb *SouthboundService) ActivateVersionSet(ctx context.Context, req *v1.ActivateVersionSetRequest) (*v1.VersionSetResponse, error) {
+func (sb *SouthboundService) ActivateVersionSet(ctx context.Context, req *grpc_southbound.ActivateVersionSetRequest) (*grpc_southbound.VersionSetResponse, error) {
 	if req == nil || req.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "version set ID is required")
 	}
@@ -177,7 +177,7 @@ func (sb *SouthboundService) ActivateVersionSet(ctx context.Context, req *v1.Act
 	return convertVersionSetToResponse(vs)
 }
 
-func (sb *SouthboundService) DisableVersionSet(ctx context.Context, req *v1.DisableVersionSetRequest) (*v1.VersionSetResponse, error) {
+func (sb *SouthboundService) DisableVersionSet(ctx context.Context, req *grpc_southbound.DisableVersionSetRequest) (*grpc_southbound.VersionSetResponse, error) {
 	if req == nil || req.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "version set ID is required")
 	}
@@ -206,7 +206,7 @@ func (sb *SouthboundService) DisableVersionSet(ctx context.Context, req *v1.Disa
 }
 
 // Helper function to convert a VersionSet to a VersionSetResponse
-func convertVersionSetToResponse(vs *types.VersionSet) (*v1.VersionSetResponse, error) {
+func convertVersionSetToResponse(vs *types.VersionSet) (*grpc_southbound.VersionSetResponse, error) {
 	if vs == nil {
 		return nil, fmt.Errorf("version set is nil")
 	}
@@ -230,12 +230,12 @@ func convertVersionSetToResponse(vs *types.VersionSet) (*v1.VersionSetResponse, 
 		disabledAt = timestamppb.New(*vs.DisabledAt)
 	}
 
-	return &v1.VersionSetResponse{
-		VersionSet: &v1.VersionSet{
+	return &grpc_southbound.VersionSetResponse{
+		VersionSet: &grpc_southbound.VersionSet{
 			Id:          vs.ID.String(),
 			Name:        vs.Name,
 			Description: *vs.Description,
-			State:       v1.VersionState(v1.VersionState_value[string(vs.State)]),
+			State:       grpc_southbound.VersionState(grpc_southbound.VersionState_value[string(vs.State)]),
 			CreatedBy:   vs.CreatedBy,
 			ActivatedAt: activatedAt,
 			DisabledAt:  disabledAt,

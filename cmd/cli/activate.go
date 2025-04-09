@@ -1,7 +1,7 @@
 package cli
 
 import (
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -54,7 +54,7 @@ var activateNodeCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		req := &v1.ActivateNodeRequest{
+		req := &grpc_southbound.ActivateNodeRequest{
 			SerialNumber: nodeSerial,
 			VersionSetId: versionSetId,
 		}
@@ -81,7 +81,7 @@ var activateGroupCmd = &cobra.Command{
 			log.Fatal().Msg("Version number or group name is missing")
 		}
 
-		req := &v1.ActivateFleetRequest{
+		req := &grpc_southbound.ActivateFleetRequest{
 			VersionSetId: versionSetId,
 			GroupName:    &group,
 		}
@@ -115,7 +115,7 @@ var activateFleetCmd = &cobra.Command{
 			log.Fatal().Msg("Version number is missing")
 		}
 
-		req := &v1.ActivateFleetRequest{
+		req := &grpc_southbound.ActivateFleetRequest{
 			VersionSetId: versionSetId,
 		}
 

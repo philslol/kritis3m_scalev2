@@ -7,9 +7,10 @@ import (
 	"os"
 	"time"
 
+	grpc_est "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/est"
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/db"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -18,12 +19,12 @@ import (
 type SouthboundService struct {
 	db   *db.StateManager
 	addr string
-	v1.UnimplementedSouthboundServer
+	grpc_southbound.UnimplementedSouthboundServer
+	grpc_est.UnimplementedEstServiceServer
 }
 
 // NewSouthbound creates a new instance of SouthboundService
 func NewSouthbound(db *db.StateManager, addr string) *SouthboundService {
-	//create new controlplane client
 	return &SouthboundService{
 		db:   db,
 		addr: addr,

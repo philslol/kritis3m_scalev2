@@ -9,14 +9,14 @@ import (
 	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/rs/zerolog/log"
 
+	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/gofrs/uuid/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	v1 "github.com/philslol/kritis3m_scalev2/gen/go/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProxyRequest) (*v1.ProxyResponse, error) {
+func (sb *SouthboundService) CreateProxy(ctx context.Context, req *grpc_southbound.CreateProxyRequest) (*grpc_southbound.ProxyResponse, error) {
 	versionSetUUID, err := uuid.FromString(req.VersionSetId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
@@ -43,8 +43,8 @@ func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProx
 		return nil, status.Errorf(codes.Internal, "failed to create proxy: %v", err)
 	}
 
-	return &v1.ProxyResponse{
-		Proxy: []*v1.Proxy{
+	return &grpc_southbound.ProxyResponse{
+		Proxy: []*grpc_southbound.Proxy{
 			{
 				Id:                 int32(createdProxy.ID),
 				NodeSerialNumber:   createdProxy.NodeSerial,
@@ -61,16 +61,16 @@ func (sb *SouthboundService) CreateProxy(ctx context.Context, req *v1.CreateProx
 	}, nil
 }
 
-func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyRequest) (*v1.ProxyResponse, error) {
+func (sb *SouthboundService) GetProxy(ctx context.Context, req *grpc_southbound.GetProxyRequest) (*grpc_southbound.ProxyResponse, error) {
 	var proxies []*types.Proxy
 	switch query := req.GetQuery().(type) {
-	case *v1.GetProxyRequest_Id:
+	case *grpc_southbound.GetProxyRequest_Id:
 		proxy, err := sb.db.GetProxyByID(ctx, int(req.GetId()))
 		if err != nil {
 			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
 		}
 		proxies = append(proxies, proxy)
-	case *v1.GetProxyRequest_NameQuery:
+	case *grpc_southbound.GetProxyRequest_NameQuery:
 		versionSetID, err := uuid.FromString(query.NameQuery.GetVersionSetId())
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
@@ -81,7 +81,7 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
 		}
 		proxies = append(proxies, proxy)
-	case *v1.GetProxyRequest_SerialQuery:
+	case *grpc_southbound.GetProxyRequest_SerialQuery:
 		versionSetID, err := uuid.FromString(query.SerialQuery.GetVersionSetId())
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
@@ -91,7 +91,7 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 		if err != nil {
 			return nil, status.Errorf(codes.NotFound, "proxy not found: %v", err)
 		}
-	case *v1.GetProxyRequest_VersionSetId:
+	case *grpc_southbound.GetProxyRequest_VersionSetId:
 		versionSetID, err := uuid.FromString(query.VersionSetId)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid version set ID: %v", err)
@@ -109,21 +109,21 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 		}
 	}
 	//convert proxies and return
-	proxyResponses := make([]*v1.Proxy, len(proxies))
+	proxyResponses := make([]*grpc_southbound.Proxy, len(proxies))
 	for i, proxy := range proxies {
 
 		// Convert stored string back to ProxyType enum
-		proxyType := v1.ProxyType_FORWARD // Default to FORWARD
+		proxyType := grpc_southbound.ProxyType_FORWARD // Default to FORWARD
 		switch strings.ToUpper(string(proxy.ProxyType)) {
 		case "FORWARD":
-			proxyType = v1.ProxyType_FORWARD
+			proxyType = grpc_southbound.ProxyType_FORWARD
 		case "REVERSE":
-			proxyType = v1.ProxyType_REVERSE
+			proxyType = grpc_southbound.ProxyType_REVERSE
 		case "TLSTLS":
-			proxyType = v1.ProxyType_TLSTLS
+			proxyType = grpc_southbound.ProxyType_TLSTLS
 		}
 
-		proxyResponses[i] = &v1.Proxy{
+		proxyResponses[i] = &grpc_southbound.Proxy{
 			Id:                 int32(proxy.ID),
 			NodeSerialNumber:   proxy.NodeSerial,
 			GroupName:          proxy.GroupName,
@@ -135,12 +135,12 @@ func (sb *SouthboundService) GetProxy(ctx context.Context, req *v1.GetProxyReque
 		}
 	}
 
-	return &v1.ProxyResponse{
+	return &grpc_southbound.ProxyResponse{
 		Proxy: proxyResponses,
 	}, nil
 }
 
-func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *v1.UpdateProxyRequest) (*empty.Empty, error) {
+func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *grpc_southbound.UpdateProxyRequest) (*empty.Empty, error) {
 	updates := make(map[string]interface{})
 	var err error
 
@@ -162,13 +162,13 @@ func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *v1.UpdateProx
 	}
 
 	switch query := req.GetQuery().(type) {
-	case *v1.UpdateProxyRequest_Id:
+	case *grpc_southbound.UpdateProxyRequest_Id:
 		where_string := fmt.Sprintf("id = %d", query.Id)
 		err = sb.db.UpdateWhere(ctx, "proxies", updates, where_string)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to update proxy: %v", err)
 		}
-	case *v1.UpdateProxyRequest_NameQuery:
+	case *grpc_southbound.UpdateProxyRequest_NameQuery:
 		versionSetID, err := uuid.FromString(query.NameQuery.GetVersionSetId())
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
@@ -184,7 +184,7 @@ func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *v1.UpdateProx
 	return &empty.Empty{}, nil
 }
 
-func (sb *SouthboundService) DeleteProxy(ctx context.Context, req *v1.DeleteProxyRequest) (*empty.Empty, error) {
+func (sb *SouthboundService) DeleteProxy(ctx context.Context, req *grpc_southbound.DeleteProxyRequest) (*empty.Empty, error) {
 	err := sb.db.Delete(ctx, "proxies", "id", strconv.Itoa(int(req.Id)))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete proxy: %v", err)
