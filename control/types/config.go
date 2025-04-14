@@ -80,7 +80,7 @@ type CliConfig struct {
 // ESTServerConfig holds the configuration for the EST server
 type ESTServerConfig struct {
 	CA             CAConfig
-	TLS            TLSConfig
+	EndpointConfig ESTEndpointConfig
 	AllowedHosts   []string
 	HealthCheckPwd string
 	RateLimit      int
@@ -88,11 +88,30 @@ type ESTServerConfig struct {
 	Log            LogConfig
 }
 
+// ESTEndpointConfig holds the endpoint configuration
+type ESTEndpointConfig struct {
+	ListenAddress        string
+	Certificates         string
+	PrivateKey           string
+	RootCerts            []string
+	MutualAuthentication bool
+	Ciphersuites         []string
+	KeylogFile           string
+	PKCS11               PKCS11Module
+}
+
 // CAConfig holds the CA configuration
 type CAConfig struct {
+	Backends       []PKIBackendConfig
+	DefaultBackend *PKIBackendConfig
+	Validity       int
+}
+
+// PKIBackendConfig holds configuration for a PKI backend
+type PKIBackendConfig struct {
+	APS          string
 	Certificates string
 	PrivateKey   string
-	Validity     int
 	PKCS11Module PKCS11Module
 }
 
@@ -185,9 +204,9 @@ func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 	// Get keys
 	private.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "private_key"))
 	device.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "device_cert"))
-	root.Paths = []string{viper.GetString(fmt.Sprintf("%s.%s", basepath, "root_cert"))}
+	root.Paths = viper.GetStringSlice(fmt.Sprintf("%s.%s", basepath, "root_certs"))
 
-	if root.Paths[0] == "" || device.Path == "" || private.Path == "" {
+	if len(root.Paths) == 0 || device.Path == "" || private.Path == "" {
 		err := fmt.Errorf("either device or root or private key is empty")
 		log.Err(err)
 		return nil, err
@@ -201,9 +220,9 @@ func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 		RootCertificates:       root,
 		DeviceCertificateChain: device,
 		PrivateKey:             private,
+		Ciphersuites:           viper.GetStringSlice(fmt.Sprintf("%s.%s", basepath, "ciphersuites")),
 	}
 	return &ep_config, nil
-
 }
 
 func GetDatabaseConfig() (*DatabaseConfig, error) {
@@ -313,22 +332,44 @@ func GetESTServerConfig() (*ESTServerConfig, error) {
 	var estConfig ESTServerConfig
 
 	// Parse CA config
-	estConfig.CA.Certificates = viper.GetString("est_server_config.ca.certificates")
-	estConfig.CA.PrivateKey = viper.GetString("est_server_config.ca.private_key")
-	estConfig.CA.Validity = viper.GetInt("est_server_config.ca.validity")
-	estConfig.CA.PKCS11Module.Path = viper.GetString("est_server_config.ca.pkcs11_module.path")
-	estConfig.CA.PKCS11Module.Pin = viper.GetString("est_server_config.ca.pkcs11_module.pin")
+	caConfig := viper.Sub("est_server_config.ca")
+	if caConfig == nil {
+		return nil, fmt.Errorf("missing CA configuration")
+	}
 
-	// Parse TLS config
-	estConfig.TLS.ListenAddress = viper.GetString("est_server_config.tls.listen_address")
-	estConfig.TLS.Certificates = viper.GetString("est_server_config.tls.certificates")
-	estConfig.TLS.PrivateKey = viper.GetString("est_server_config.tls.private_key")
-	estConfig.TLS.ClientCAs = viper.GetStringSlice("est_server_config.tls.client_cas")
-	estConfig.TLS.ASLEndpoint.MutualAuthentication = viper.GetBool("est_server_config.tls.asl_endpoint.mutual_authentication")
-	estConfig.TLS.ASLEndpoint.Ciphersuites = viper.GetStringSlice("est_server_config.tls.asl_endpoint.ciphersuites")
-	estConfig.TLS.ASLEndpoint.KeylogFile = viper.GetString("est_server_config.tls.asl_endpoint.keylog_file")
-	estConfig.TLS.PKCS11Module.Path = viper.GetString("est_server_config.tls.pkcs11_module.path")
-	estConfig.TLS.PKCS11Module.Pin = viper.GetString("est_server_config.tls.pkcs11_module.pin")
+	// Parse backends
+	var backends []PKIBackendConfig
+	if err := caConfig.UnmarshalKey("backends", &backends); err != nil {
+		return nil, fmt.Errorf("failed to parse CA backends: %v", err)
+	}
+
+	// Parse default backend
+	var defaultBackend PKIBackendConfig
+	if err := caConfig.UnmarshalKey("default_backend", &defaultBackend); err != nil {
+		return nil, fmt.Errorf("failed to parse default backend: %v", err)
+	}
+
+	estConfig.CA = CAConfig{
+		Backends:       backends,
+		DefaultBackend: &defaultBackend,
+		Validity:       caConfig.GetInt("validity"),
+	}
+
+	// Parse endpoint config
+	epConfig := viper.Sub("est_server_config.endpoint_config")
+	if epConfig == nil {
+		return nil, fmt.Errorf("missing endpoint configuration")
+	}
+
+	estConfig.EndpointConfig.ListenAddress = epConfig.GetString("listen_address")
+	estConfig.EndpointConfig.Certificates = epConfig.GetString("certificates")
+	estConfig.EndpointConfig.PrivateKey = epConfig.GetString("private_key")
+	estConfig.EndpointConfig.RootCerts = epConfig.GetStringSlice("root_certs")
+	estConfig.EndpointConfig.MutualAuthentication = epConfig.GetBool("mutual_authentication")
+	estConfig.EndpointConfig.Ciphersuites = epConfig.GetStringSlice("ciphersuites")
+	estConfig.EndpointConfig.KeylogFile = epConfig.GetString("key_log_file")
+	estConfig.EndpointConfig.PKCS11.Path = epConfig.GetString("pkcs11.path")
+	estConfig.EndpointConfig.PKCS11.Pin = epConfig.GetString("pkcs11.pin")
 
 	// Parse general EST server config
 	estConfig.AllowedHosts = viper.GetStringSlice("est_server_config.allowed_hosts")
@@ -337,18 +378,21 @@ func GetESTServerConfig() (*ESTServerConfig, error) {
 	estConfig.Timeout = viper.GetInt("est_server_config.timeout")
 	estConfig.Log = parse_Log("est_server_config.log")
 
-	// Check required fields
-	if estConfig.TLS.ListenAddress == "" {
+	// Validate configuration
+	if len(estConfig.CA.Backends) == 0 {
+		return nil, fmt.Errorf("no CA backends configured")
+	}
+	if estConfig.CA.DefaultBackend == nil {
+		return nil, fmt.Errorf("no default backend configured")
+	}
+	if estConfig.EndpointConfig.ListenAddress == "" {
 		return nil, fmt.Errorf("no listen address specified for EST server")
 	}
-	if estConfig.CA.Certificates == "" || estConfig.CA.PrivateKey == "" {
-		return nil, fmt.Errorf("CA certificates or private key missing in EST server configuration")
-	}
-	if estConfig.TLS.Certificates == "" || estConfig.TLS.PrivateKey == "" {
+	if estConfig.EndpointConfig.Certificates == "" || estConfig.EndpointConfig.PrivateKey == "" {
 		return nil, fmt.Errorf("TLS certificates or private key missing in EST server configuration")
 	}
-	if len(estConfig.TLS.ClientCAs) == 0 {
-		return nil, fmt.Errorf("no client CAs provided in EST server configuration")
+	if len(estConfig.EndpointConfig.RootCerts) == 0 {
+		return nil, fmt.Errorf("no root certificates provided in EST server configuration")
 	}
 
 	return &estConfig, nil

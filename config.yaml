@@ -35,6 +35,9 @@ broker_config:
     no_encryption: false
     key_exchange_method: "KEX_DEFAULT"
     key_log_file: "./tmp/keylog.txt"
+    ciphersuites:
+      - "TLS13-AES256-GCM-SHA384"
+      - "TLS13-CHACHA20-POLY1305-SHA256"
 
 control_plane_config:
   server_address: ":8883"
@@ -50,28 +53,44 @@ control_plane_config:
     no_encryption: false
     key_exchange_method: "KEX_DEFAULT"
     key_log_file: "./tmp/keylog.txt"
+    ciphersuites:
+      - "TLS13-AES256-GCM-SHA384"
+      - "TLS13-CHACHA20-POLY1305-SHA256"
 
 est_server_config:
   ca:
-    certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/ca_chain.pem"
-    private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem"
+    backends:
+      - aps: "dataplane"
+        certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/dataplane/ca_chain.pem"
+        private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/dataplane/privateKey.pem"
+        pkcs11_module:
+          path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
+          pin: ""
+      - aps: "controlplane"
+        certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/controlplane/ca_chain.pem"
+        private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/controlplane/privateKey.pem"
+        pkcs11_module:
+          path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
+          pin: ""
+    default_backend:
+      certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/default/ca_chain.pem"
+      private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/default/privateKey.pem"
+      pkcs11_module:
+        path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
+        pin: ""
     validity: 365
-    pkcs11_module:
-      path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
-      pin: ""
-  tls:
+  endpoint_config:
     listen_address: ":8443"
     certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/chain.pem"
     private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/privateKey.pem"
-    client_cas:
+    root_certs:
       - "/home/philipp/development/kritis3m_workspace/certificates/pki/root/cert.pem"
-    asl_endpoint:
-      mutual_authentication: true
-      ciphersuites:
-        - "TLS13-AES256-GCM-SHA384"
-        - "TLS13-CHACHA20-POLY1305-SHA256"
-      keylog_file: "/home/philipp/development/kritis3m_workspace/measurements/keylog.log"
-    pkcs11_module:
+    mutual_authentication: true
+    ciphersuites:
+      - "TLS13-AES256-GCM-SHA384"
+      - "TLS13-CHACHA20-POLY1305-SHA256"
+    key_log_file: "/home/philipp/development/kritis3m_workspace/measurements/keylog.log"
+    pkcs11:
       path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
       pin: ""
   allowed_hosts:
