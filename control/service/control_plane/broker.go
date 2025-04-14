@@ -102,6 +102,9 @@ func (b *Broker) Serve(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		b.log.Info().Msg("Broker shutdown signal received")
+		if err := ctx.Err(); err != nil {
+			b.log.Info().Err(err).Msg("Context cancellation reason")
+		}
 	case err := <-errChan:
 		b.log.Err(err).Msg("Broker encountered an error")
 	}

@@ -53,41 +53,10 @@ func (e *ESTServer) SetContext(ctx context.Context) {
 // NewESTServer creates and sets up a new EST server based on the provided configuration
 func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	var err error
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// PKCS11 configuration for the CA
-	pkcs11Config := kritis3m_pki.PKCS11Config{
-		EntityModule: nil,
-		IssuerModule: &kritis3m_pki.PKCS11Module{
-			Path: cfg.CA.PKCS11Module.Path,
-			Pin:  cfg.CA.PKCS11Module.Pin,
-			Slot: 0, // TODO: Add slot to configuration
-		},
-	}
-
-	// Setup ASL endpoint configuration
-	endpointConfig := &asl.EndpointConfig{
-		MutualAuthentication: cfg.TLS.ASLEndpoint.MutualAuthentication,
-		ASLKeyExchangeMethod: asl.KEX_DEFAULT, // TODO: Add key exchange method to configuration
-		PreSharedKey: asl.PreSharedKey{
-			Enable: false,
-		},
-		DeviceCertificateChain: asl.DeviceCertificateChain{Path: cfg.TLS.Certificates},
-		PrivateKey: asl.PrivateKey{
-			Path: cfg.TLS.PrivateKey,
-		},
-		RootCertificates: asl.RootCertificates{Paths: cfg.TLS.ClientCAs},
-		KeylogFile:       cfg.TLS.ASLEndpoint.KeylogFile,
-		PKCS11: asl.PKCS11ASL{
-			Path: cfg.TLS.PKCS11Module.Path,
-			Pin:  cfg.TLS.PKCS11Module.Pin,
-		},
-	}
 
 	// Create ASL endpoint
-	endpoint := asl.ASLsetupServerEndpoint(endpointConfig)
+	endpoint := asl.ASLsetupServerEndpoint(&cfg.EndpointConfig)
 	if endpoint == nil {
-		cancel()
 		return nil, fmt.Errorf("failed to setup server endpoint")
 	}
 
@@ -113,7 +82,6 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	if err != nil {
 		asl.ASLFreeEndpoint(endpoint)
 		asl.ASLshutdown()
-		cancel()
 		return nil, fmt.Errorf("failed to initialize PKI: %v", err)
 	}
 
@@ -125,12 +93,11 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	if cfg.Log.Format == "" {
 		logger = alogger.New(os.Stderr, estLogLevel)
 	} else {
-		logFilePath := "/tmp/estserver.log" // Default log file path
+		logFilePath := "/tmp/estserver.log"
 		f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			asl.ASLFreeEndpoint(endpoint)
 			asl.ASLshutdown()
-			cancel()
 			return nil, fmt.Errorf("failed to open log file: %v", err)
 		}
 		logger = alogger.New(f, estLogLevel)
@@ -144,21 +111,18 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 		validity = 365
 	}
 
-	// Create CA
-	ca, err := realca.Load(
-		cfg.CA.Certificates,
-		cfg.CA.PrivateKey,
-		logger,
-		pkcs11Config,
-		validity,
-	)
+	// Create CA using the default backend
+	if cfg.CA.DefaultBackend == nil {
+		return nil, fmt.Errorf("no default backend configured")
+	}
+
+	ca, err := realca.New(cfg.CA.Backends, cfg.CA.DefaultBackend, logger, validity)
 	if err != nil {
 		if logFile != nil {
 			logFile.Close()
 		}
 		asl.ASLFreeEndpoint(endpoint)
-		cancel()
-		return nil, fmt.Errorf("failed to create CA: %v", err)
+		return nil, fmt.Errorf("failed to create CA: %w", err)
 	}
 
 	// Create server router
@@ -174,19 +138,17 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 			logFile.Close()
 		}
 		asl.ASLFreeEndpoint(endpoint)
-		cancel()
 		return nil, fmt.Errorf("failed to create new EST router: %v", err)
 	}
 
 	// Create ASL HTTP server
 	aslServer := &aslhttpserver.ASLServer{
 		Server: &http.Server{
-			Addr:    cfg.TLS.ListenAddress,
+			Addr:    cfg.ServerAddress,
 			Handler: r,
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 				if aslConn, ok := c.(*aslListener.ASLConn); ok {
 					if aslConn.TLSState != nil {
-						// Attach the TLS state to the context
 						return context.WithValue(ctx, common.TLSStateKey, aslConn.TLSState)
 					}
 				}
@@ -199,36 +161,34 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	}
 
 	return &ESTServer{
-		server:     aslServer,
-		endpoint:   endpoint,
-		logFile:    logFile,
-		cancelFunc: cancel,
-		ctx:        ctx,
+		server:   aslServer,
+		endpoint: endpoint,
+		logFile:  logFile,
 	}, nil
 }
 
 // Serve starts the EST server
-func (e *ESTServer) Serve() error {
+func (e *ESTServer) Serve(ctx context.Context) error {
+	errChan := make(chan error)
 	go func() {
 		err := e.server.ListenAndServeASLTLS()
 		if err != nil && err != http.ErrServerClosed {
 			zerolog_log.Error().Err(err).Msg("EST server error")
+			errChan <- err
 		}
+		close(errChan)
 	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errChan:
+		return err
+	}
 
-	// Start a goroutine to monitor the context for cancellation
-	go func() {
-		<-e.ctx.Done()
-		zerolog_log.Info().Msg("EST server context cancelled, shutting down")
-		e.shutdownInternal()
-	}()
-
-	zerolog_log.Info().Msg("EST server started")
-	return nil
 }
 
 // shutdownInternal handles the internal shutdown logic
-func (e *ESTServer) shutdownInternal() {
+func (e *ESTServer) Shutdown() {
 	if e.server != nil && e.server.Server != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -245,16 +205,4 @@ func (e *ESTServer) shutdownInternal() {
 	if e.logFile != nil {
 		e.logFile.Close()
 	}
-}
-
-// Shutdown gracefully stops the EST server
-func (e *ESTServer) Shutdown() {
-	e.cancelFunc() // This will trigger the monitoring goroutine in Serve()
-
-	// Wait a bit to allow the server to shut down gracefully
-	time.Sleep(100 * time.Millisecond)
-
-	// Call ASL shutdown after cancelling, in case it wasn't already called
-
-	zerolog_log.Info().Msg("EST server stopped")
 }

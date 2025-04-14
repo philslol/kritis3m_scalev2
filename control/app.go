@@ -54,18 +54,11 @@ func (scale *Kritis3m_Scale) Serve() {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create EST server")
 	} else {
-		// Replace the EST server's context with the application context
-		estServer.SetContext(ctx)
-
-		// Start the EST server in a goroutine
 		go func() {
-			log.Info().Msg("Starting EST server")
-			if err := estServer.Serve(); err != nil {
+			if err := estServer.Serve(ctx); err != nil {
 				log.Error().Err(err).Msg("EST server serve failed")
 				cancel() // Cancel context on EST server failure
 			}
-			log.Info().Msg("EST server stopped")
-			log.Info().Msg("EST server stopped\n\n")
 		}()
 
 		// Ensure server is properly shut down
@@ -81,18 +74,16 @@ func (scale *Kritis3m_Scale) Serve() {
 	if broker == nil {
 		log.Err(err).Msg("Broker is nil")
 	}
-
+	broker_ctx := context.Background()
 	go func() {
-		if err := broker.Serve(ctx); err != nil {
+		if err := broker.Serve(broker_ctx); err != nil {
 			log.Err(err).Msg("Broker serve failed")
-			cancel() // Cancel context on broker failure
 		}
 	}()
 
 	control_plane := controlplane.ControlPlaneInit(scale.cfg.ControlPlane)
 	if control_plane == nil {
 		log.Err(err).Msg("Control Plane is nil")
-		log.Fatal().Msg("Control Plane is nil")
 	}
 
 	sb := southbound.NewSouthbound(database, scale.cfg.CliConfig.ServerAddr)
@@ -100,12 +91,12 @@ func (scale *Kritis3m_Scale) Serve() {
 	//use ServerAddr and create new grpc listening server
 	lis, err := net.Listen("tcp", scale.cfg.CliConfig.ServerAddr)
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Err(err)
 	}
 
 	s := grpc.NewServer()
 	if err != nil {
-		log.Fatal().Err(err)
+		log.Err(err)
 	}
 
 	grpc_southbound.RegisterSouthboundServer(s, sb)
@@ -115,7 +106,7 @@ func (scale *Kritis3m_Scale) Serve() {
 	go func() {
 		log.Info().Msgf("Server listening at %v", lis.Addr())
 		if err := s.Serve(lis); err != nil {
-			log.Fatal().Err(err).Msg("gRPC server error")
+			log.Err(err).Msg("gRPC server error")
 			cancel() // Cancel context on failure
 		}
 	}()
@@ -125,7 +116,7 @@ func (scale *Kritis3m_Scale) Serve() {
 	go func() {
 		err := hello_service.Hello(ctx)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Hello service error")
+			log.Err(err).Msg("Hello service error")
 			cancel() // Cancel context on failure
 		}
 	}()
@@ -134,7 +125,7 @@ func (scale *Kritis3m_Scale) Serve() {
 	go func() {
 		err := log_service.LogNodeTransaction(ctx)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Log service error")
+			log.Error().Err(err).Msg("Log service error")
 			cancel() // Cancel context on failure
 		}
 	}()
@@ -145,6 +136,8 @@ func (scale *Kritis3m_Scale) Serve() {
 		log.Info().Msg("Shutdown signal received")
 	case <-ctx.Done():
 		log.Info().Msg("Context cancelled")
+	case <-broker_ctx.Done():
+		log.Info().Msg("Broker context cancelled")
 	}
 
 	// Graceful shutdown

@@ -137,8 +137,10 @@ func (ls *LogService) LogNodeTransaction(ctx context.Context) error {
 	// Wait for context cancellation or error from goroutine
 	select {
 	case <-ctx.Done():
+		log.Info().Msg("Log service context cancelled")
 		return ctx.Err()
 	case err := <-errChan:
+		log.Error().Err(err).Msg("Log service error")
 		return err
 	}
 }
@@ -189,8 +191,10 @@ func (hs *HelloService) Hello(ctx context.Context) error {
 	}()
 	select {
 	case <-ctx.Done():
+		log.Info().Msg("Hello service context cancelled")
 		return ctx.Err()
 	case err := <-errChan:
+		log.Error().Err(err).Msg("Hello service error")
 		return err
 	}
 }

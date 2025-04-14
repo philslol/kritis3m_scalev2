@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est/lib/kritis3m_pki"
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est/lib/realca"
 	"github.com/philslol/kritis3m_scalev2/control/util"
 
 	asl "github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl"
@@ -79,8 +81,9 @@ type CliConfig struct {
 
 // ESTServerConfig holds the configuration for the EST server
 type ESTServerConfig struct {
+	ServerAddress  string
 	CA             CAConfig
-	EndpointConfig ESTEndpointConfig
+	EndpointConfig asl.EndpointConfig
 	AllowedHosts   []string
 	HealthCheckPwd string
 	RateLimit      int
@@ -108,12 +111,7 @@ type CAConfig struct {
 }
 
 // PKIBackendConfig holds configuration for a PKI backend
-type PKIBackendConfig struct {
-	APS          string
-	Certificates string
-	PrivateKey   string
-	PKCS11Module PKCS11Module
-}
+type PKIBackendConfig = realca.PKIBackendConfig
 
 // TLSConfig holds the TLS configuration
 type TLSConfig struct {
@@ -337,62 +335,55 @@ func GetESTServerConfig() (*ESTServerConfig, error) {
 		return nil, fmt.Errorf("missing CA configuration")
 	}
 
-	// Parse backends
-	var backends []PKIBackendConfig
-	if err := caConfig.UnmarshalKey("backends", &backends); err != nil {
-		return nil, fmt.Errorf("failed to parse CA backends: %v", err)
-	}
-
-	// Parse default backend
-	var defaultBackend PKIBackendConfig
-	if err := caConfig.UnmarshalKey("default_backend", &defaultBackend); err != nil {
-		return nil, fmt.Errorf("failed to parse default backend: %v", err)
-	}
-
-	estConfig.CA = CAConfig{
-		Backends:       backends,
-		DefaultBackend: &defaultBackend,
-		Validity:       caConfig.GetInt("validity"),
-	}
-
-	// Parse endpoint config
-	epConfig := viper.Sub("est_server_config.endpoint_config")
-	if epConfig == nil {
-		return nil, fmt.Errorf("missing endpoint configuration")
-	}
-
-	estConfig.EndpointConfig.ListenAddress = epConfig.GetString("listen_address")
-	estConfig.EndpointConfig.Certificates = epConfig.GetString("certificates")
-	estConfig.EndpointConfig.PrivateKey = epConfig.GetString("private_key")
-	estConfig.EndpointConfig.RootCerts = epConfig.GetStringSlice("root_certs")
-	estConfig.EndpointConfig.MutualAuthentication = epConfig.GetBool("mutual_authentication")
-	estConfig.EndpointConfig.Ciphersuites = epConfig.GetStringSlice("ciphersuites")
-	estConfig.EndpointConfig.KeylogFile = epConfig.GetString("key_log_file")
-	estConfig.EndpointConfig.PKCS11.Path = epConfig.GetString("pkcs11.path")
-	estConfig.EndpointConfig.PKCS11.Pin = epConfig.GetString("pkcs11.pin")
-
 	// Parse general EST server config
 	estConfig.AllowedHosts = viper.GetStringSlice("est_server_config.allowed_hosts")
 	estConfig.HealthCheckPwd = viper.GetString("est_server_config.healthcheck_password")
 	estConfig.RateLimit = viper.GetInt("est_server_config.rate_limit")
 	estConfig.Timeout = viper.GetInt("est_server_config.timeout")
 	estConfig.Log = parse_Log("est_server_config.log")
+	estConfig.ServerAddress = viper.GetString("est_server_config.server_address")
 
-	// Validate configuration
-	if len(estConfig.CA.Backends) == 0 {
-		return nil, fmt.Errorf("no CA backends configured")
+	ep, err := parse_ASLEndpointConfig("est_server_config.endpoint_config")
+	if err != nil {
+		return nil, err
 	}
-	if estConfig.CA.DefaultBackend == nil {
-		return nil, fmt.Errorf("no default backend configured")
+	estConfig.EndpointConfig = *ep
+
+	// Parse backends
+
+	// First unmarshal the config
+	var backends []PKIBackendConfig
+	if err := caConfig.UnmarshalKey("backends", &backends); err != nil {
+		return nil, fmt.Errorf("failed to parse CA backends: %v", err)
 	}
-	if estConfig.EndpointConfig.ListenAddress == "" {
-		return nil, fmt.Errorf("no listen address specified for EST server")
+
+	// Then update each backend in place using index notation
+	for i := range backends {
+		backends[i].APS = viper.GetString(fmt.Sprintf("est_server_config.ca.backends.%d.aps", i))
+		backends[i].Module = &kritis3m_pki.PKCS11Module{
+			Path: viper.GetString(fmt.Sprintf("est_server_config.ca.backends.%d.pkcs11_module.path", i)),
+			Pin:  viper.GetString(fmt.Sprintf("est_server_config.ca.backends.%d.pkcs11_module.pin", i)),
+			Slot: viper.GetInt(fmt.Sprintf("est_server_config.ca.backends.%d.pkcs11_module.slot", i)),
+		}
+		backends[i].Certificates = viper.GetString(fmt.Sprintf("est_server_config.ca.backends.%d.certificates", i))
+		backends[i].PrivateKey = viper.GetString(fmt.Sprintf("est_server_config.ca.backends.%d.private_key", i))
 	}
-	if estConfig.EndpointConfig.Certificates == "" || estConfig.EndpointConfig.PrivateKey == "" {
-		return nil, fmt.Errorf("TLS certificates or private key missing in EST server configuration")
+
+	// Parse default backend
+	var defaultBackend PKIBackendConfig
+	defaultBackend.Module = &kritis3m_pki.PKCS11Module{
+		Path: viper.GetString("est_server_config.ca.default_backend.pkcs11_module.path"),
+		Pin:  viper.GetString("est_server_config.ca.default_backend.pkcs11_module.pin"),
+		Slot: viper.GetInt("est_server_config.ca.default_backend.pkcs11_module.slot"),
 	}
-	if len(estConfig.EndpointConfig.RootCerts) == 0 {
-		return nil, fmt.Errorf("no root certificates provided in EST server configuration")
+	defaultBackend.Certificates = viper.GetString("est_server_config.ca.default_backend.certificates")
+	defaultBackend.PrivateKey = viper.GetString("est_server_config.ca.default_backend.private_key")
+	defaultBackend.APS = viper.GetString("est_server_config.ca.default_backend.aps")
+
+	estConfig.CA = CAConfig{
+		Backends:       backends,
+		DefaultBackend: &defaultBackend,
+		Validity:       caConfig.GetInt("validity"),
 	}
 
 	return &estConfig, nil
