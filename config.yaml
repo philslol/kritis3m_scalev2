@@ -19,7 +19,7 @@ database:
 
 asl_config:
   logging_enabled: true
-  log_level: 1
+  log_level: 4
 
 broker_config:
   address: ":8883"
@@ -64,20 +64,20 @@ est_server_config:
   ca:
     backends:
       - aps: "dataplane"
-        certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/chain.pem"
-        private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/privateKey.pem"
+        certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/ca_chain.pem"
+        private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem"
         pkcs11_module:
           path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
           pin: ""
       - aps: "controlplane"
-        certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/chain.pem"
-        private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/privateKey.pem"
+        certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/ca_chain.pem"
+        private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem"
         pkcs11_module:
           path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
           pin: ""
     default_backend:
-      certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/chain.pem"
-      private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/est_server/privateKey.pem"
+      certificates: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/ca_chain.pem"
+      private_key: "/home/philipp/development/kritis3m_workspace/certificates/pki/intermediate/privateKey.pem"
       pkcs11_module:
         path: "/home/philipp/development/kritis3m_workspace/secure_element/smartcard_middleware.so"
         pin: ""

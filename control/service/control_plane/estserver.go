@@ -21,33 +21,13 @@ import (
 	zerolog_log "github.com/rs/zerolog/log"
 )
 
+var estLog zerolog.Logger
+
 // ESTServer represents the EST server instance
 type ESTServer struct {
-	server     *aslhttpserver.ASLServer
-	endpoint   *asl.ASLEndpoint
-	logFile    *os.File
-	cancelFunc context.CancelFunc
-	ctx        context.Context
-}
-
-// SetContext replaces the server's context with a new one
-func (e *ESTServer) SetContext(ctx context.Context) {
-	// Cancel the original context
-	if e.cancelFunc != nil {
-		e.cancelFunc()
-	}
-
-	// Create new derived context
-	derivedCtx, cancel := context.WithCancel(ctx)
-	e.ctx = derivedCtx
-	e.cancelFunc = cancel
-
-	// Monitor parent context
-	go func() {
-		<-ctx.Done()
-		zerolog_log.Debug().Msg("Parent context done, cancelling EST server context")
-		cancel()
-	}()
+	server   *aslhttpserver.ASLServer
+	endpoint *asl.ASLEndpoint
+	logFile  *os.File
 }
 
 // NewESTServer creates and sets up a new EST server based on the provided configuration
@@ -74,6 +54,7 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	default:
 		pkiLogLevel = kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_WRN
 	}
+	estLog = zerolog_log.Logger.Level(cfg.Log.Level)
 
 	err = kritis3m_pki.InitPKI(&kritis3m_pki.KRITIS3MPKIConfiguration{
 		LogLevel:       int32(pkiLogLevel),
@@ -91,7 +72,7 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 
 	estLogLevel := cfg.Log.Level
 	if cfg.Log.Format == "" {
-		logger = alogger.New(os.Stderr, estLogLevel)
+		logger = alogger.New(os.Stderr, 4)
 	} else {
 		logFilePath := "/tmp/estserver.log"
 		f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -173,15 +154,17 @@ func (e *ESTServer) Serve(ctx context.Context) error {
 	go func() {
 		err := e.server.ListenAndServeASLTLS()
 		if err != nil && err != http.ErrServerClosed {
-			zerolog_log.Error().Err(err).Msg("EST server error")
+			estLog.Error().Err(err).Msg("EST server error")
 			errChan <- err
 		}
 		close(errChan)
 	}()
 	select {
 	case <-ctx.Done():
+		estLog.Info().Msg("EST server context done")
 		return ctx.Err()
 	case err := <-errChan:
+		estLog.Info().Msg("EST server error")
 		return err
 	}
 
@@ -194,7 +177,7 @@ func (e *ESTServer) Shutdown() {
 		defer cancel()
 
 		if err := e.server.Server.Shutdown(ctx); err != nil {
-			zerolog_log.Error().Err(err).Msg("Error shutting down EST server")
+			estLog.Error().Err(err).Msg("Error shutting down EST server")
 		}
 	}
 
