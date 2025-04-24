@@ -3,11 +3,11 @@ module github.com/philslol/kritis3m_scalev2
 go 1.23.5
 
 require (
-	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.9
-	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est v1.0.11
-	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250416103654-cc8a5f9725e6
-	github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250127171153-04e29aca11d6
-	github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-00010101000000-000000000000
+	// github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.9
+	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est v1.0.12-0.20250424112606-a2783694b5c1
+	//github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250416103654-cc8a5f9725e6
+	// github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250127171153-04e29aca11d6
+	// github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-00010101000000-000000000000
 	github.com/gofrs/uuid/v5 v5.3.1
 	github.com/golang/protobuf v1.5.4
 	github.com/jackc/pgx-gofrs-uuid v0.0.0-20230224015001-1d428863c2e2
@@ -25,6 +25,13 @@ require (
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+)
+
+require (
+	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.9
+	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250416103654-cc8a5f9725e6
+	github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250424112622-943bf27c932c
+	github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-20250409145412-ea12e7607035
 )
 
 require (
@@ -74,12 +81,8 @@ require (
 	gorm.io/gorm v1.25.12 // indirect
 )
 
-replace github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl/lib => ./pkg/go-asl/lib
-
-replace github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl => ./pkg/go-asl
-
-replace github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker => ./pkg/mqtt_broker
-
-replace github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est => ./pkg/kritis3m_est
-
-replace github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang => ./pkg/paho.mqtt.golang
+// replace github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl/lib => ./pkg/go-asl/lib
+// replace github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl => ./pkg/go-asl
+// replace github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker => ./pkg/mqtt_broker
+// replace github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est => ./pkg/kritis3m_est
+// replace github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang => ./pkg/paho.mqtt.golang
