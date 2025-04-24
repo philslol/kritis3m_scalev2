@@ -13,7 +13,7 @@ var activateCmd = &cobra.Command{
 }
 
 func init() {
-	log.Debug().Msg("Registering proxy commands")
+	log.Debug().Msg("Registering activate commands")
 
 	rootCmd.AddCommand(activateCmd)
 

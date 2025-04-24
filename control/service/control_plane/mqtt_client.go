@@ -143,6 +143,47 @@ var reconHandler mqtt_paho.ReconnectHandler = func(client mqtt_paho.Client, opts
 
 /**********************************End  Handler *******************************************/
 
+func (fac *MqttFactory) SendCertificateRequest(ctx context.Context, req *grpc_controlplane.CertificateRequest) (*grpc_controlplane.CertificateResponse, error) {
+	// check req
+	if req.CertType != grpc_southbound.CertType_CONTROLPLANE && req.CertType != grpc_southbound.CertType_DATAPLANE {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid cert type")
+	}
+	//check serial number
+	if req.SerialNumber == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "serial number is empty")
+	}
+
+	if req.HostName == "" && req.IpAddr == "" { //|| req.Port == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "host name or ip addr and port are empty")
+	}
+
+	// create topic
+	topic := req.SerialNumber + "/control/cert_req"
+
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to marshal request")
+	}
+
+	// get client
+	c, err := fac.GetClient("update_node")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get client")
+	}
+	defer c.cleanup()
+
+	// publish
+	token := c.client.Publish(topic, 2, false, payload)
+	token.Wait()
+	if token.Error() != nil {
+		return nil, status.Errorf(codes.Internal, "failed to publish request")
+	}
+
+	return &grpc_controlplane.CertificateResponse{
+		Retcode: 0,
+	}, nil
+}
+
 func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grpc.ServerStreamingServer[grpc_controlplane.UpdateResponse]) error {
 	// Create channel for the stream and done signal
 	streamChan := make(chan grpc_controlplane.UpdateState)

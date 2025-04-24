@@ -1,36 +1,31 @@
 package db
 
 const schemaSQL = `
-CREATE TYPE proxy_type AS ENUM ('not_specifed','forward', 'reverse', 'tlstls');
-CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
-CREATE TYPE version_transition_status AS ENUM ('pending', 'active', 'failed', 'rollback');
-
-CREATE TYPE transaction_type AS ENUM ('node_update', 'group_update', 'version_update');
-CREATE TYPE transaction_state AS ENUM ('error', 'unknown', 'published', 'received', 'applicable', 'applied');
-
-CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
-CREATE TYPE asl_key_exchange_method AS ENUM (
-    'ASL_KEX_DEFAULT',
-    'ASL_KEX_CLASSIC_SECP256',
-    'ASL_KEX_CLASSIC_SECP384',
-    'ASL_KEX_CLASSIC_SECP521',
-    'ASL_KEX_CLASSIC_X25519',
-    'ASL_KEX_CLASSIC_X448',
-    'ASL_KEX_PQC_MLKEM512',
-    'ASL_KEX_PQC_MLKEM768',
-    'ASL_KEX_PQC_MLKEM1024',
-    'ASL_KEX_HYBRID_SECP256_MLKEM512',
-    'ASL_KEX_HYBRID_SECP384_MLKEM768',
-    'ASL_KEX_HYBRID_SECP256_MLKEM768',
-    'ASL_KEX_HYBRID_SECP521_MLKEM1024',
-    'ASL_KEX_HYBRID_SECP384_MLKEM1024',
-    'ASL_KEX_HYBRID_X25519_MLKEM512',
-    'ASL_KEX_HYBRID_X448_MLKEM768',
-    'ASL_KEX_HYBRID_X25519_MLKEM768'
-);
-
-
-
+-- CREATE TYPE proxy_type AS ENUM ('not_specifed','forward', 'reverse', 'tlstls');
+-- CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
+-- CREATE TYPE version_transition_status AS ENUM ('pending', 'active', 'failed', 'rollback');
+-- CREATE TYPE transaction_type AS ENUM ('node_update', 'group_update', 'version_update');
+-- CREATE TYPE transaction_state AS ENUM ('error', 'unknown', 'published', 'received', 'applicable', 'applied');
+-- CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
+-- CREATE TYPE asl_key_exchange_method AS ENUM (
+--     'ASL_KEX_DEFAULT',
+--     'ASL_KEX_CLASSIC_SECP256',
+--     'ASL_KEX_CLASSIC_SECP384',
+--     'ASL_KEX_CLASSIC_SECP521',
+--     'ASL_KEX_CLASSIC_X25519',
+--     'ASL_KEX_CLASSIC_X448',
+--    'ASL_KEX_PQC_MLKEM512',
+--     'ASL_KEX_PQC_MLKEM768',
+--     'ASL_KEX_PQC_MLKEM1024',
+--     'ASL_KEX_HYBRID_SECP256_MLKEM512',
+--     'ASL_KEX_HYBRID_SECP384_MLKEM768',
+--     'ASL_KEX_HYBRID_SECP256_MLKEM768',
+--     'ASL_KEX_HYBRID_SECP521_MLKEM1024',
+--     'ASL_KEX_HYBRID_SECP384_MLKEM1024',
+--     'ASL_KEX_HYBRID_X25519_MLKEM512',
+--     'ASL_KEX_HYBRID_X448_MLKEM768',
+--     'ASL_KEX_HYBRID_X25519_MLKEM768'
+-- );
 -- Modified Transactions Table
 CREATE TABLE IF NOT EXISTS transactions (
                                             id SERIAL PRIMARY KEY,
@@ -168,19 +163,16 @@ CREATE TABLE IF NOT EXISTS proxies (
 );
 
 CREATE TABLE IF NOT EXISTS enroll (
-    id SERIAL PRIMARY KEY,
-    est_serial_number VARCHAR(255),
-    serial_number TEXT NOT NULL CHECK (char_length(serial_number) <= 50),
-    organization VARCHAR(255),
-    issued_at TIMESTAMP,
-    expires_at TIMESTAMP,
-    signature_algorithm VARCHAR(120),
-    plane VARCHAR(80),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_node_serial_number 
-        FOREIGN KEY (serial_number) 
-        REFERENCES nodes(serial_number)
+     id SERIAL PRIMARY KEY,
+     est_serial_number VARCHAR(255),
+     serial_number TEXT NOT NULL CHECK (char_length(serial_number) <= 50),
+     organization VARCHAR(255),
+     issued_at TIMESTAMP,
+     expires_at TIMESTAMP,
+     signature_algorithm VARCHAR(120),
+     plane VARCHAR(80),
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 

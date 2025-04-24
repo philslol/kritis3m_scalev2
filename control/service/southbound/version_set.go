@@ -11,7 +11,6 @@ import (
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -211,17 +210,6 @@ func convertVersionSetToResponse(vs *types.VersionSet) (*grpc_southbound.Version
 		return nil, fmt.Errorf("version set is nil")
 	}
 
-	// Parse metadata JSON back to protobuf struct
-	var rawMetadata map[string]interface{}
-	if err := json.Unmarshal(vs.Metadata, &rawMetadata); err != nil {
-		return nil, fmt.Errorf("failed to parse metadata: %w", err)
-	}
-
-	metadata, err := structpb.NewStruct(rawMetadata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert metadata to protobuf struct: %w", err)
-	}
-
 	var activatedAt, disabledAt *timestamppb.Timestamp
 	if vs.ActivatedAt != nil && !vs.ActivatedAt.IsZero() {
 		activatedAt = timestamppb.New(*vs.ActivatedAt)
@@ -239,7 +227,6 @@ func convertVersionSetToResponse(vs *types.VersionSet) (*grpc_southbound.Version
 			CreatedBy:   vs.CreatedBy,
 			ActivatedAt: activatedAt,
 			DisabledAt:  disabledAt,
-			Metadata:    metadata,
 		},
 	}, nil
 }

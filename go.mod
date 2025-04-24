@@ -5,7 +5,7 @@ go 1.23.5
 require (
 	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.9
 	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_est v1.0.11
-	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250409131106-2be03ee65863
+	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250416103654-cc8a5f9725e6
 	github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250127171153-04e29aca11d6
 	github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-00010101000000-000000000000
 	github.com/gofrs/uuid/v5 v5.3.1
