@@ -174,6 +174,7 @@ func (sm *StateManager) ResetDatabase() error {
 	drop type if exists transaction_status cascade;
 	drop type if exists proxy_type cascade;
 	drop type if exists asl_key_exchange_method cascade;
+	drop type if exists operation_type cascade;
 	`
 	return sm.ExecuteInTransaction(context.Background(), func(tx pgx.Tx) error {
 		_, err := tx.Exec(context.Background(), dropSQL)
