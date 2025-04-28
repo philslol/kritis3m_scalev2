@@ -53,6 +53,10 @@ var bootstrapCmd = &cobra.Command{
 		sm, ctx, cancel, err := app.GetRawDB(10 * time.Second)
 		defer cancel()
 
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to get raw database")
+		}
+
 		err = sm.InitializeSchema()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to initialize database schema")
