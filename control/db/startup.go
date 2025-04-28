@@ -58,7 +58,7 @@ func NewStateManager(ctx context.Context) (*StateManager, error) {
 
 	pool, err := SetupDatabase(ctx, dbConfig)
 	if err != nil {
-		log.Err(err).Msgf("Failed to setup database: %v", err)
+		log.Fatal().Err(err).Msgf("Failed to setup database: %v", err)
 		return nil, err
 	}
 
