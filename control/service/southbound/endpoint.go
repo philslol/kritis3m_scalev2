@@ -150,7 +150,7 @@ func (sb *SouthboundService) UpdateEndpointConfig(ctx context.Context, req *grpc
 	case *grpc_southbound.UpdateEndpointConfigRequest_EndpointConfigQuery:
 		name := req.GetEndpointConfigQuery().Name
 		versionSetID := uuid.FromStringOrNil(req.GetEndpointConfigQuery().VersionSetId)
-		where_string = fmt.Sprintf("name = %s AND version_set_id = %s", name, versionSetID)
+		where_string = fmt.Sprintf("name = '%s' AND version_set_id = '%s'", name, versionSetID)
 	}
 
 	err := sb.db.UpdateWhere(ctx, "endpoint_configs", updates, where_string)

@@ -36,7 +36,7 @@ func init() {
 func initConfig() {
 	// If the --config flag is not set, use a default value
 	if cfgFile == "" {
-		cfgFile = "/home/philipp/development/ctrl_plane_test/kritis3m_scalev2/config.yaml" // Default file path if no argument provided
+		log.Fatal().Err(fmt.Errorf("no config path"))
 	}
 	log.Debug().Msg("in function initconfig root")
 
@@ -56,10 +56,12 @@ func initConfig() {
 	machineOutput := HasMachineOutputFlag()
 
 	zerolog.SetGlobalLevel(cfg.Log.Level)
+	log.Debug().Msgf("logger with global level %s", zerolog.FormattedLevels[zerolog.GlobalLevel()])
 
 	// If the user has requested a "node" readable format,
 	// then disable login so the output remains valid.
 	if machineOutput {
+		log.Debug().Msg("machine output. Disabled logging")
 		zerolog.SetGlobalLevel(zerolog.Disabled)
 	}
 

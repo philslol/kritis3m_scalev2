@@ -89,6 +89,7 @@ type ESTServerConfig struct {
 	RateLimit      int
 	Timeout        int
 	Log            LogConfig
+	ASLConfig      asl.ASLConfig
 }
 
 // ESTEndpointConfig holds the endpoint configuration
@@ -384,6 +385,11 @@ func GetESTServerConfig() (*ESTServerConfig, error) {
 		Backends:       backends,
 		DefaultBackend: &defaultBackend,
 		Validity:       caConfig.GetInt("validity"),
+	}
+
+	estConfig.ASLConfig = asl.ASLConfig{
+		LoggingEnabled: viper.GetBool("est_server_config.asl_config.logging_enabled"),
+		LogLevel:       viper.GetInt32("est_server_config.asl_config.log_level"),
 	}
 
 	return &estConfig, nil

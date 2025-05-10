@@ -34,53 +34,28 @@ type ESTServer struct {
 func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 	var err error
 
-	// Create ASL endpoint
-	endpoint := asl.ASLsetupServerEndpoint(&cfg.EndpointConfig)
-	if endpoint == nil {
-		return nil, fmt.Errorf("failed to setup server endpoint")
-	}
-
-	// Initialize PKI
-	pkiLogLevel := kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_WRN
-	switch cfg.Log.Level {
-	case zerolog.ErrorLevel:
-		pkiLogLevel = kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_ERR
-	case zerolog.WarnLevel:
-		pkiLogLevel = kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_WRN
-	case zerolog.InfoLevel:
-		pkiLogLevel = kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_INF
-	case zerolog.DebugLevel:
-		pkiLogLevel = kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_DBG
-	default:
-		pkiLogLevel = kritis3m_pki.KRITIS3M_PKI_LOG_LEVEL_WRN
-	}
-	estLog = zerolog_log.Logger.Level(cfg.Log.Level)
-
 	err = kritis3m_pki.InitPKI(&kritis3m_pki.KRITIS3MPKIConfiguration{
-		LogLevel:       int32(pkiLogLevel),
-		LoggingEnabled: true,
+		LogLevel:       int32(cfg.ASLConfig.LogLevel),
+		LoggingEnabled: cfg.ASLConfig.LoggingEnabled,
 	})
 	if err != nil {
-		asl.ASLFreeEndpoint(endpoint)
-		asl.ASLshutdown()
 		return nil, fmt.Errorf("failed to initialize PKI: %v", err)
 	}
 
-	// Create logger
 	var logger est.Logger
 	var logFile *os.File
 
 	estLogLevel := cfg.Log.Level
+	estLog = zerolog_log.Logger.Level(cfg.Log.Level)
 	if cfg.Log.Format == "" {
 		logger = alogger.New(os.Stderr, 4)
 	} else {
 		logFilePath := "/tmp/estserver.log"
 		f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			asl.ASLFreeEndpoint(endpoint)
-			asl.ASLshutdown()
 			return nil, fmt.Errorf("failed to open log file: %v", err)
 		}
+
 		logger = alogger.New(f, estLogLevel)
 		logFile = f
 	}
@@ -102,7 +77,6 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 		if logFile != nil {
 			logFile.Close()
 		}
-		asl.ASLFreeEndpoint(endpoint)
 		return nil, fmt.Errorf("failed to create CA: %w", err)
 	}
 
@@ -118,8 +92,13 @@ func NewESTServer(cfg *types.ESTServerConfig) (*ESTServer, error) {
 		if logFile != nil {
 			logFile.Close()
 		}
-		asl.ASLFreeEndpoint(endpoint)
 		return nil, fmt.Errorf("failed to create new EST router: %v", err)
+	}
+
+	endpoint := asl.ASLsetupServerEndpoint(&cfg.EndpointConfig)
+	if endpoint == nil {
+		return nil, fmt.Errorf("failed to setup server endpoint")
+
 	}
 
 	// Create ASL HTTP server

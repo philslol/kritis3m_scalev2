@@ -386,37 +386,56 @@ func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[g
 	}
 	defer c.cleanup()
 	type logMessage struct {
-		Message      string `json:"message,omitempty"`
-		Level        int32  `json:"level,omitempty"`
-		Module       string `json:"module,omitempty"`
-		SerialNumber string `json:"serial_number,omitempty"`
+		Timestamp int64  `json:"timestamp"`
+		Module    string `json:"module"`
+		Level     int32  `json:"level"`
+		Message   string `json:"message"`
 	}
 
-	topic := "log"
-	messageChan := make(chan string, 3)
+	topic := "+/log"
+	messageChan := make(chan struct {
+		serialNumber string
+		payload      string
+	}, 3)
 	token := c.client.Subscribe(topic, 0, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
 		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-		messageChan <- string(msg.Payload())
+		// Extract serial number from topic (first element)
+		parts := strings.Split(msg.Topic(), "/")
+		if len(parts) > 0 {
+			serialNumber := parts[0]
+			messageChan <- struct {
+				serialNumber string
+				payload      string
+			}{
+				serialNumber: serialNumber,
+				payload:      string(msg.Payload()),
+			}
+		}
 	})
 	c.subs = append(c.subs, topic)
 
 	token.Wait()
 	go func() {
-		for message := range messageChan {
-			var logMessage logMessage
-			err := json.Unmarshal([]byte(message), &logMessage)
+		for msg := range messageChan {
+			// Parse the array of log messages
+			var logMessages []logMessage
+			err := json.Unmarshal([]byte(msg.payload), &logMessages)
 			if err != nil {
 				log.Err(err).Msg("error unmarshalling log message")
 				continue
 			}
-			err = stream.Send(&grpc_controlplane.LogResponse{
-				Message:      logMessage.Message,
-				Level:        &logMessage.Level,
-				Module:       &logMessage.Module,
-				SerialNumber: logMessage.SerialNumber,
-			})
-			if err != nil {
-				return
+
+			// Send each log message in the array
+			for _, logMsg := range logMessages {
+				err = stream.Send(&grpc_controlplane.LogResponse{
+					Message:      logMsg.Message,
+					Level:        &logMsg.Level,
+					Module:       &logMsg.Module,
+					SerialNumber: msg.serialNumber,
+				})
+				if err != nil {
+					return
+				}
 			}
 		}
 	}()
@@ -449,6 +468,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 	log.Info().Msgf("Starting fleet update for %d nodes, tx_id: %d", len(req.NodeUpdateItems), req.Transaction.TxId)
 
 	c, err := fac.GetClient("update_fleet")
+
 	if err != nil {
 		log.Err(err).Msg("failed to get client")
 		return status.Errorf(codes.Internal, "failed to get client")
@@ -681,7 +701,7 @@ func publishConfigs(
 			return fmt.Errorf("context canceled while publishing configs")
 		default:
 			// Use the new topic structure
-			topicConfig := node.SerialNumber + "/sync/config"
+			topicConfig := node.SerialNumber + "/config"
 			configToken := c.client.Publish(topicConfig, 2, false, configPayload)
 			configToken.Wait()
 

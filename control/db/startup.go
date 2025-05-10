@@ -29,12 +29,11 @@ type Config struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() Config {
 	return Config{
-		Host:         "db",
+		Host:         "localhost",
 		Port:         5432,
 		User:         "postgres",
 		Password:     "postgres",
 		DatabaseName: "postgres",
-		SSLMode:      "disable",
 	}
 }
 
@@ -47,8 +46,7 @@ func (c Config) BuildConnectionString() string {
 }
 
 func NewStateManager(ctx context.Context) (*StateManager, error) {
-
-	// Get database configuration
+	log.Trace().Msg("in function new Statemanager")
 	dbConfig := DefaultConfig()
 
 	// Override with environment variables if needed
@@ -58,7 +56,7 @@ func NewStateManager(ctx context.Context) (*StateManager, error) {
 
 	pool, err := SetupDatabase(ctx, dbConfig)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("Failed to setup database: %v", err)
+		log.Err(err).Msgf("Failed to setup database: %v", err)
 		return nil, err
 	}
 
@@ -67,33 +65,20 @@ func NewStateManager(ctx context.Context) (*StateManager, error) {
 
 // SetupDatabase initializes the database and runs migrations
 func SetupDatabase(ctx context.Context, config Config) (*pgxpool.Pool, error) {
+	log.Trace().Msg("in function SetupDatabase")
 	// First, try to connect to create the database if it doesn't exist
 	adminConnStr := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s sslmode=%s",
-		config.Host, config.Port, config.User, config.Password, config.SSLMode,
+		"host=%s port=%d user=%s password=%s",
+		config.Host, config.Port, config.User, config.Password,
 	)
+	log.Debug().Msgf("admin connection is: %s", adminConnStr)
 	adminPool, err := pgxpool.Connect(ctx, adminConnStr)
 	if err != nil {
+		log.Err(err).Msg("")
 		log.Err(err).Msg("failed to connect to PostgreSQL")
 		return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 	}
 	defer adminPool.Close()
-
-	// Create database if it doesn't exist
-	_, err = adminPool.Exec(ctx, fmt.Sprintf(`
-		CREATE DATABASE %s
-		WITH 
-		OWNER = %s
-		ENCODING = 'UTF8'
-		LC_COLLATE = 'en_US.utf8'
-		LC_CTYPE = 'en_US.utf8'
-		TEMPLATE template0;
-	`, config.DatabaseName, config.User))
-
-	if err != nil {
-		// Ignore error if database already exists
-		log.Printf("Note: database might already exist: %v", err)
-	}
 
 	// Connect to the specific database
 	poolConfig, err := pgxpool.ParseConfig(config.BuildConnectionString())

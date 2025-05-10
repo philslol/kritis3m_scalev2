@@ -33,31 +33,29 @@ type Kritis3m_Scale struct {
 
 func NewKritis3m_scale(cfg *types.Config) (*Kritis3m_Scale, error) {
 	log.Info().Msg("In function new kritis3m_scale")
-
 	app := Kritis3m_Scale{
 		cfg: cfg,
 		// noisePrivateKey: noisePrivateKey,
 	}
-
 	return &app, nil
 }
 
 func (scale *Kritis3m_Scale) Serve() {
+	log.Info().Msgf("Entrypoint function serve")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Create EST server with the application context
 	estServer, err := controlplane.NewESTServer(&scale.cfg.ESTServer)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to create EST server")
+		log.Fatal().Err(err).Msg("")
 	} else {
 		go func() {
 			if err := estServer.Serve(ctx); err != nil {
 				log.Error().Err(err).Msg("EST server serve failed")
-				cancel() // Cancel context on EST server failure
+				ctx.Done()
 			}
 		}()
 
@@ -67,14 +65,16 @@ func (scale *Kritis3m_Scale) Serve() {
 
 	database, err := db.NewStateManager(ctx)
 	if err != nil {
-		log.Err(err)
+		log.Err(err).Msg("")
 	}
 
 	broker := controlplane.NewBroker(scale.cfg.Broker)
 	if broker == nil {
 		log.Err(err).Msg("Broker is nil")
 	}
-	broker_ctx := context.Background()
+	broker_ctx, broker_cancel := context.WithCancel(context.Background())
+	defer broker_cancel()
+
 	go func() {
 		if err := broker.Serve(broker_ctx); err != nil {
 			log.Err(err).Msg("Broker serve failed")
@@ -87,16 +87,14 @@ func (scale *Kritis3m_Scale) Serve() {
 	}
 
 	sb := southbound.NewSouthbound(database, scale.cfg.CliConfig.ServerAddr)
-
-	//use ServerAddr and create new grpc listening server
 	lis, err := net.Listen("tcp", scale.cfg.CliConfig.ServerAddr)
 	if err != nil {
-		log.Err(err)
+		log.Err(err).Msg("")
 	}
 
 	s := grpc.NewServer()
 	if err != nil {
-		log.Err(err)
+		log.Err(err).Msg("")
 	}
 
 	grpc_southbound.RegisterSouthboundServer(s, sb)
@@ -107,17 +105,16 @@ func (scale *Kritis3m_Scale) Serve() {
 		log.Info().Msgf("Server listening at %v", lis.Addr())
 		if err := s.Serve(lis); err != nil {
 			log.Err(err).Msg("gRPC server error")
-			cancel() // Cancel context on failure
+			ctx.Done()
 		}
 	}()
-	time.Sleep(1 * time.Second)
 
 	hello_service := southbound.NewHelloService(database, scale.cfg.CliConfig.ServerAddr)
 	go func() {
 		err := hello_service.Hello(ctx)
 		if err != nil {
 			log.Err(err).Msg("Hello service error")
-			cancel() // Cancel context on failure
+			ctx.Done()
 		}
 	}()
 
@@ -126,7 +123,7 @@ func (scale *Kritis3m_Scale) Serve() {
 		err := log_service.LogNodeTransaction(ctx)
 		if err != nil {
 			log.Error().Err(err).Msg("Log service error")
-			cancel() // Cancel context on failure
+			ctx.Done()
 		}
 	}()
 
@@ -139,12 +136,12 @@ func (scale *Kritis3m_Scale) Serve() {
 	case <-broker_ctx.Done():
 		log.Info().Msg("Broker context cancelled")
 	}
+	log.Info().Msg("shutting down")
 
 	// Graceful shutdown
 	s.GracefulStop()
 	log.Info().Msg("gRPC server stopped")
 
-	cancel() // Ensure all goroutines stop
 	log.Info().Msg("Shutdown complete")
 }
 

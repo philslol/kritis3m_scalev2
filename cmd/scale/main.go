@@ -1,13 +1,13 @@
 package main
 
 import (
-	"os"
-	"time"
-	_ "github.com/philslol/kritis3m_scalev2/cmd/cli"
 	"github.com/jagottsicher/termcolor"
 	"github.com/philslol/kritis3m_scalev2/cmd/cli"
+	_ "github.com/philslol/kritis3m_scalev2/cmd/cli"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"os"
+	"time"
 )
 
 func main() {

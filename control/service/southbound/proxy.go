@@ -174,7 +174,7 @@ func (sb *SouthboundService) UpdateProxy(ctx context.Context, req *grpc_southbou
 			return nil, status.Errorf(codes.Internal, "uuid conversion failed: %v", err)
 		}
 		proxy_name := query.NameQuery.GetName()
-		where_string := fmt.Sprintf("name = %s AND version_set_id = %s", proxy_name, versionSetID.String())
+		where_string := fmt.Sprintf("name = '%s' AND version_set_id = '%s'", proxy_name, versionSetID.String())
 		err = sb.db.UpdateWhere(ctx, "proxies", updates, where_string)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to update proxy: %v", err)

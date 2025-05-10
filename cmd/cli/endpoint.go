@@ -160,11 +160,8 @@ var updateEndpointCmd = &cobra.Command{
 		id, _ := cmd.Flags().GetInt32("id")
 
 		name, _ := cmd.Flags().GetString("name")
-		mutualAuth, _ := cmd.Flags().GetBool("mutual-auth")
-		noEncryption, _ := cmd.Flags().GetBool("no-encryption")
-		kexMethod, _ := cmd.Flags().GetString("kex-method")
-		cipher, _ := cmd.Flags().GetString("cipher")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
+		log.Debug().Msgf("versionSetID: %s, name: %s", versionSetID, name)
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
@@ -174,19 +171,11 @@ var updateEndpointCmd = &cobra.Command{
 		defer cancel()
 		defer conn.Close()
 
-		var kexMethodEnum grpc_southbound.AslKeyexchangeMethod
-		if kexMethod != "" {
-			kexMethodEnum = grpc_southbound.AslKeyexchangeMethod(grpc_southbound.AslKeyexchangeMethod_value[kexMethod])
-		}
-
 		request := &grpc_southbound.UpdateEndpointConfigRequest{}
+
+		// Set the query based on id or version+name
 		if id != 0 {
 			request.Query = &grpc_southbound.UpdateEndpointConfigRequest_Id{Id: id}
-			request.Name = &name
-			request.MutualAuth = &mutualAuth
-			request.NoEncryption = &noEncryption
-			request.AslKeyExchangeMethod = &kexMethodEnum
-			request.Cipher = &cipher
 		} else if versionSetID != "" && name != "" {
 			request.Query = &grpc_southbound.UpdateEndpointConfigRequest_EndpointConfigQuery{
 				EndpointConfigQuery: &grpc_southbound.EndpointConfigNameQuery{
@@ -194,13 +183,34 @@ var updateEndpointCmd = &cobra.Command{
 					Name:         name,
 				},
 			}
-			request.Name = &name
-			request.MutualAuth = &mutualAuth
-			request.NoEncryption = &noEncryption
-			request.AslKeyExchangeMethod = &kexMethodEnum
-			request.Cipher = &cipher
 		} else {
 			log.Fatal().Msg("Must specify either id or version-number and name")
+		}
+
+		// Only add fields to the request if they were expliceitly set by user
+		if cmd.Flags().Changed("name") {
+			request.Name = &name
+		}
+
+		if cmd.Flags().Changed("mutual-auth") {
+			mutualAuth, _ := cmd.Flags().GetBool("mutual-auth")
+			request.MutualAuth = &mutualAuth
+		}
+
+		if cmd.Flags().Changed("no-encryption") {
+			noEncryption, _ := cmd.Flags().GetBool("no-encryption")
+			request.NoEncryption = &noEncryption
+		}
+
+		if cmd.Flags().Changed("kex-method") {
+			kexMethod, _ := cmd.Flags().GetString("kex-method")
+			kexMethodEnum := types.ASLKeyExchangeMethodToProto(kexMethod)
+			request.AslKeyExchangeMethod = &kexMethodEnum
+		}
+
+		if cmd.Flags().Changed("cipher") {
+			cipher, _ := cmd.Flags().GetString("cipher")
+			request.Cipher = &cipher
 		}
 
 		_, err = client.UpdateEndpointConfig(ctx, request)

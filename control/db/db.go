@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS enroll (
      plane VARCHAR(80),
      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    FOREIGN KEY (group_name, version_set_id)
+        REFERENCES groups(name, version_set_id)
 );
 
 
