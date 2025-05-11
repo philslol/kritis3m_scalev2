@@ -355,6 +355,7 @@ func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer
 	messageChan := make(chan string)
 	token := c.client.Subscribe(topic, 0, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
 		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+		fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 		// Extract serial number from topic (first element)
 		parts := strings.Split(msg.Topic(), "/")
 		if len(parts) > 0 {
@@ -494,7 +495,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 	}
 
 	// Subscribe to all node QoS status topics - this is where we receive update state messages
-	topicQos := "+/control/qos"
+	topicQos := "+/control/state"
 
 	// Subscribe to all node responses
 	qosToken := c.client.Subscribe(topicQos, 2, func(client mqtt_paho.Client, msg mqtt_paho.Message) {

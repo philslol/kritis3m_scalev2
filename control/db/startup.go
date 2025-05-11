@@ -134,6 +134,8 @@ func (sm *StateManager) ResetDatabase() error {
 
 	// Drop all tables in reverse order of dependencies
 	dropSQL := `
+    drop trigger if exists trigger_update_node_disabled_status on nodes;
+	drop function if exists trg_update_node_disabled_status();
 	drop table if exists change_log cascade;
 	drop table if exists version_sets cascade;
 	drop table if exists version_transitions cascade;

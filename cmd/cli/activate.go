@@ -70,7 +70,7 @@ var activateNodeCmd = &cobra.Command{
 }
 
 var activateGroupCmd = &cobra.Command{
-	Use:   "node",
+	Use:   "group",
 	Short: "activate a group",
 	Long:  "activate a group in the network",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -105,7 +105,7 @@ var activateGroupCmd = &cobra.Command{
 }
 
 var activateFleetCmd = &cobra.Command{
-	Use:   "node",
+	Use:   "fleet",
 	Short: "activate a fleet",
 	Long:  "activate a fleet in the network",
 	RunE: func(cmd *cobra.Command, args []string) error {
