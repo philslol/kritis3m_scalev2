@@ -202,6 +202,7 @@ func parse_ASLEndpointConfig(basepath string) (*asl.EndpointConfig, error) {
 
 	// Get keys
 	private.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "private_key"))
+	private.AdditionalKeyPath = viper.GetString(fmt.Sprintf("%s.%s", basepath, "alt_private_key"))
 	device.Path = viper.GetString(fmt.Sprintf("%s.%s", basepath, "device_cert"))
 	root.Paths = viper.GetStringSlice(fmt.Sprintf("%s.%s", basepath, "root_certs"))
 

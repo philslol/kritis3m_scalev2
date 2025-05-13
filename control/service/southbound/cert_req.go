@@ -27,6 +27,8 @@ func (sb *SouthboundService) TriggerCertReq(ctx context.Context, req *grpc_south
 	}
 	defer conn.Close()
 
+	//TODO: check if algo is supported by est server
+
 	// TODO: get hostname and ip addr from db
 	// the est server could be started now as a service with timeout awaiting the request from the control plane
 	client.SendCertificateRequest(ctx, &grpc_controlplane.CertificateRequest{
@@ -34,6 +36,8 @@ func (sb *SouthboundService) TriggerCertReq(ctx context.Context, req *grpc_south
 		CertType:     req.CertType,
 		HostName:     "example hostname",
 		IpAddr:       "example ip",
+		Algo:         req.Algo,
+		AltAlgo:      req.AltAlgo,
 		Port:         0,
 	})
 

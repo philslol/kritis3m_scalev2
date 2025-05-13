@@ -16,7 +16,7 @@ const (
 
 var outputFormat string
 
-var cfgFile string = "/home/philipp/development/ctrl_plane_test/kritis3m_scalev2/config.yaml" // Default file path if no argument provided
+var cfgFile string = ""
 
 func init() {
 	if len(os.Args) > 1 &&
@@ -26,7 +26,7 @@ func init() {
 
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().
-		StringVar(&cfgFile, "config", "", "Path to the configuration file (default is ./config.yaml)")
+		StringVar(&cfgFile, "config", "./server/config.yaml", "Path to the configuration file (default is ./server/config.yaml)")
 	rootCmd.PersistentFlags().
 		StringP("output", "o", "", "Output format. Empty for human-readable, 'json', 'json-line' or 'yaml'")
 	rootCmd.PersistentFlags().
@@ -34,9 +34,12 @@ func init() {
 }
 
 func initConfig() {
-	// If the --config flag is not set, use a default value
+	// If the --config flag is not set, use the default value from the flag definition
 	if cfgFile == "" {
-		log.Fatal().Err(fmt.Errorf("no config path"))
+		cfgFile = "./server/config.yaml"
+		log.Debug().Msgf("using default config file %s", cfgFile)
+	} else {
+		log.Debug().Msgf("using config file %s", cfgFile)
 	}
 	log.Debug().Msg("in function initconfig root")
 

@@ -8,6 +8,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	log.Debug().Msg("Registering cert_req commands")
+	cert_req.Flags().StringP("node-serial", "n", "", "Node serial number")
+	cert_req.MarkFlagRequired("node-serial")
+
+	cert_req.Flags().StringP("plane", "p", "", "specify the plane of the certificate request either \"dataplane\" or \"controlplane\"")
+	cert_req.MarkFlagRequired("plane")
+
+	// Add new optional flags
+	cert_req.Flags().String("algo", "", "Optional algorithm to use for certificate: rsa2048, rsa3072, rsa4096,secp256, secp384, secp521, ed25519, ed448, mldsa44, mldsa65, mldsa87, falcon512, falcon1024")
+	cert_req.Flags().String("alt-algo", "", "Optional algorithm to use for certificate: rsa2048, rsa3072, rsa4096,secp256, secp384, secp521, ed25519, ed448, mldsa44, mldsa65, mldsa87, falcon512, falcon1024")
+
+	rootCmd.AddCommand(cert_req)
+
+	// Create command flags
+}
+
 var cert_req = &cobra.Command{
 	Use:   "cert_req",
 	Short: "trigger a certificate request",
@@ -20,6 +37,10 @@ var cert_req = &cobra.Command{
 			log.Fatal().Msg("Invalid plane specified. Please use either \"dataplane\" or \"controlplane\".")
 		}
 
+		// Get the new optional flags
+		algo, _ := cmd.Flags().GetString("algo")
+		altAlgo, _ := cmd.Flags().GetString("alt-algo")
+
 		ctx, client, conn, cancel, err := getClient()
 		defer conn.Close()
 		defer cancel()
@@ -28,10 +49,23 @@ var cert_req = &cobra.Command{
 		}
 
 		southbound_plane := grpc_southbound.CertType_value[strings.ToUpper(plane)]
+
 		//generate request
 		req := &grpc_southbound.TriggerCertReqRequest{
 			SerialNumber: nodeSerial,
 			CertType:     grpc_southbound.CertType(southbound_plane),
+		}
+
+		// Add optional parameters if provided
+		if algo != "" {
+			req.Algo = &algo
+		} else {
+			req.Algo = nil
+		}
+		if altAlgo != "" {
+			req.AltAlgo = &altAlgo
+		} else {
+			req.AltAlgo = nil
 		}
 
 		//send request
@@ -42,16 +76,4 @@ var cert_req = &cobra.Command{
 		log.Info().Msgf("Returncode is %d", resp.Retcode)
 		return nil
 	},
-}
-
-func init() {
-	log.Debug().Msg("Registering cert_req commands")
-	cert_req.Flags().StringP("node-serial", "n", "", "Node serial number")
-	cert_req.MarkFlagRequired("node-serial")
-
-	cert_req.Flags().StringP("plane", "p", "", "specify the plane of the certificate request either \"dataplane\" or \"controlplane\"")
-	cert_req.MarkFlagRequired("plane")
-	rootCmd.AddCommand(cert_req)
-
-	// Create command flags
 }
