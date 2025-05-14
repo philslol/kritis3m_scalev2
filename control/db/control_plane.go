@@ -208,7 +208,7 @@ func (s *StateManager) GetVersionFleetUpdate(ctx context.Context, versionSetId s
 		SELECT DISTINCT serial_number 
 		FROM nodes 
 		WHERE version_set_id = $1::uuid
-		AND disabled_at IS NULL`
+		`
 
 	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, query, versionSetId)
@@ -307,14 +307,12 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 	var query string
 	var args []any
 
-	if groupName == "" {
-		// Version update query
-		query = `
+	query = `
 		WITH target_nodes AS (
 			SELECT DISTINCT serial_number
 			FROM nodes
 			WHERE version_set_id = $1::uuid
-			AND disabled_at IS NULL
+			AND now()- last_seen < interval '2 minute'
 		)
 		SELECT
 			-- Node information
@@ -322,31 +320,38 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 			n.network_index,
 			n.locality,
 			n.version_set_id::text,
+
 			-- Group information
 			g.name AS group_name,
 			g.log_level AS group_log_level,
+
 			-- Endpoint Config
 			ec1.name AS endpoint_config_name,
 			ec1.mutual_auth AS endpoint_mutual_auth,
 			ec1.no_encryption AS endpoint_no_encryption,
 			ec1.asl_key_exchange_method AS endpoint_kex_method,
 			ec1.cipher AS endpoint_cipher,
+
 			-- Legacy Config
 			ec2.name AS legacy_config_name,
 			ec2.mutual_auth AS legacy_mutual_auth,
 			ec2.no_encryption AS legacy_no_encryption,
 			ec2.asl_key_exchange_method AS legacy_kex_method,
 			ec2.cipher AS legacy_cipher,
-  			-- Hardware Configurations
-  			hc.id AS hwconfig_id,
-  			hc.device AS hwconfig_device,
-  			hc.ip_cidr::text AS hwconfig_ip_cidr,
+
+
+
 			-- Proxy information
 			p.name AS proxy_name,
 			p.state AS proxy_state,
 			p.proxy_type,
 			p.server_endpoint_addr,
-			p.client_endpoint_addr
+			p.client_endpoint_addr,
+
+			-- Hardware Configurations
+			hc.id AS hwconfig_id,
+			hc.device AS hwconfig_device,
+			hc.ip_cidr::text AS hwconfig_ip_cidr
 		FROM target_nodes tn
 		JOIN nodes n ON n.serial_number = tn.serial_number
 		LEFT JOIN hardware_configs hc ON n.serial_number = hc.node_serial AND n.version_set_id::uuid = hc.version_set_id
@@ -356,16 +361,141 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 		LEFT JOIN endpoint_configs ec2 ON g.legacy_config_name = ec2.name AND g.version_set_id = ec2.version_set_id
 		WHERE n.version_set_id = $1::uuid
 		ORDER BY n.serial_number, g.name, p.name`
-		args = []any{versionSetId}
-	} else {
-		// Group update query
-		query = `
+
+	args = []any{versionSetId}
+	nodeMap := make(map[string]*grpc_control_plane.NodeUpdateItem)
+	var nodes []*grpc_control_plane.NodeUpdateItem
+
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("failed to query nodes: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var (
+				serialNumber   string
+				networkIndex   int32
+				locality       string
+				versionSetId   string
+				groupName      string
+				groupLogLevel  int32
+				endpointConfig types.EndpointConfig
+				legacyConfig   types.EndpointConfig
+				proxyName      string
+				proxyState     bool
+				proxyType      string
+				serverEndpoint string
+				clientEndpoint string
+				hwconfigID     int32
+				hwconfigDevice string
+				hwconfigIPCIDR string
+			)
+
+			err := rows.Scan(
+				&serialNumber, &networkIndex, &locality, &versionSetId,
+				&groupName, &groupLogLevel,
+				&endpointConfig.Name, &endpointConfig.MutualAuth, &endpointConfig.NoEncryption,
+				&endpointConfig.ASLKeyExchangeMethod, &endpointConfig.Cipher,
+				&legacyConfig.Name, &legacyConfig.MutualAuth, &legacyConfig.NoEncryption,
+				&legacyConfig.ASLKeyExchangeMethod, &legacyConfig.Cipher,
+				&proxyName, &proxyState, &proxyType, &serverEndpoint, &clientEndpoint,
+				&hwconfigID, &hwconfigDevice, &hwconfigIPCIDR,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to scan row: %w", err)
+			}
+
+			// Get or create node
+			node, exists := nodeMap[serialNumber]
+			if !exists {
+				node = &grpc_control_plane.NodeUpdateItem{
+					SerialNumber:     serialNumber,
+					NetworkIndex:     networkIndex,
+					Locality:         locality,
+					VersionSetId:     versionSetId,
+					GroupProxyUpdate: []*grpc_control_plane.GroupProxyUpdate{},
+				}
+				nodeMap[serialNumber] = node
+				nodes = append(nodes, node)
+			}
+
+			// Skip if no group info
+			if groupName == "" {
+				continue
+			}
+
+			// Find or create group update
+			var groupUpdate *grpc_control_plane.GroupProxyUpdate
+			for _, g := range node.GroupProxyUpdate {
+				if g.GroupName == groupName {
+					groupUpdate = g
+					break
+				}
+			}
+			if groupUpdate == nil {
+				groupUpdate = &grpc_control_plane.GroupProxyUpdate{
+					GroupName:     groupName,
+					GroupLogLevel: groupLogLevel,
+					EndpointConfig: &grpc_southbound.EndpointConfig{
+						Name:                 endpointConfig.Name,
+						MutualAuth:           endpointConfig.MutualAuth,
+						NoEncryption:         endpointConfig.NoEncryption,
+						AslKeyExchangeMethod: endpointConfig.ASLKeyExchangeMethod,
+						Cipher:               endpointConfig.Cipher,
+					},
+					LegacyConfig: &grpc_southbound.EndpointConfig{
+						Name:                 legacyConfig.Name,
+						MutualAuth:           legacyConfig.MutualAuth,
+						NoEncryption:         legacyConfig.NoEncryption,
+						AslKeyExchangeMethod: legacyConfig.ASLKeyExchangeMethod,
+						Cipher:               legacyConfig.Cipher,
+					},
+					Proxies: []*grpc_control_plane.UpdateProxy{},
+				}
+				node.GroupProxyUpdate = append(node.GroupProxyUpdate, groupUpdate)
+			}
+
+			// Add proxy if it exists
+			if proxyName != "" {
+				proxy := &grpc_control_plane.UpdateProxy{
+					Name:               proxyName,
+					ServerEndpointAddr: serverEndpoint,
+					ClientEndpointAddr: clientEndpoint,
+					ProxyType:          grpc_southbound.ProxyType(types.ProxyTypeMap[types.ProxyType(proxyType)]),
+				}
+				groupUpdate.Proxies = append(groupUpdate.Proxies, proxy)
+			}
+		}
+
+		return rows.Err()
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fleet update: %w", err)
+	}
+
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	return &grpc_control_plane.FleetUpdate{
+		NodeUpdateItems: nodes,
+	}, nil
+}
+
+func (s *StateManager) GetGroupUpdateOptimized(ctx context.Context, versionSetId string, groupName string) (*grpc_control_plane.FleetUpdate, error) {
+	var query string
+	var args []any
+
+	query = `
 		WITH target_nodes AS (
 			SELECT DISTINCT p.node_serial
 			FROM proxies p
 			WHERE p.group_name = $1 
 			AND p.version_set_id = $2::uuid
-			AND p.disabled_at IS NULL
+			AND now()- last_seen < interval '2 minute'
 		)
 		SELECT
 			-- Node information
@@ -402,8 +532,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 		LEFT JOIN endpoint_configs ec2 ON g.legacy_config_name = ec2.name AND g.version_set_id = ec2.version_set_id
 		WHERE n.version_set_id = $2::uuid
 		ORDER BY n.serial_number, g.name, p.name`
-		args = []any{groupName, versionSetId}
-	}
+	args = []any{groupName, versionSetId}
 
 	nodeMap := make(map[string]*grpc_control_plane.NodeUpdateItem)
 	var nodes []*grpc_control_plane.NodeUpdateItem
@@ -427,7 +556,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 				legacyConfig   types.EndpointConfig
 				proxyName      string
 				proxyState     bool
-				proxyType      int32
+				proxyType      string
 				serverEndpoint string
 				clientEndpoint string
 			)

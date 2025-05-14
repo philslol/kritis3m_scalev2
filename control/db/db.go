@@ -53,7 +53,6 @@ CREATE TABLE IF NOT EXISTS nodes (
                                      network_index INTEGER NOT NULL,
                                      locality TEXT,
                                      last_seen TIMESTAMPTZ,
-                                     disabled BOOLEAN NOT NULL DEFAULT FALSE,
                                      version_set_id UUID REFERENCES version_sets(id),
                                      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                                      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -182,39 +181,4 @@ CREATE INDEX IF NOT EXISTS idx_proxies_version ON proxies(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_hwconfig_version ON hardware_configs(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_groups_version ON groups(version_set_id);
 CREATE INDEX IF NOT EXISTS idx_endpoint_version ON endpoint_configs(version_set_id);
-
-CREATE OR REPLACE FUNCTION trg_update_node_disabled_status()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- This function is called on INSERT or when 'last_seen' is UPDATED for a row.
-    -- It sets the 'disabled' status based on the NEW value of 'last_seen'.
-
-    -- If last_seen is NULL, we consider the node disabled.
-    -- You can adjust this logic if NULL has a different meaning in your context
-    -- (e.g., if NULL means "never seen, so not 'disabled' yet").
-    -- For this implementation, NULL last_seen means it's effectively disabled.
-    IF NEW.last_seen IS NULL THEN
-        NEW.disabled := TRUE;
-    ELSE
-        -- If 'last_seen' is older than 1 minute from the current time (at execution),
-        -- the node is considered disabled. Otherwise, it's not disabled.
-        -- We use clock_timestamp() to get the actual current time at the moment of execution,
-        -- which is more precise than NOW() for this type of check within a trigger.
-        IF (clock_timestamp() - NEW.last_seen) > INTERVAL '1 minute' THEN
-            NEW.disabled := TRUE;
-        ELSE
-            NEW.disabled := FALSE;
-        END IF;
-    END IF;
-
-    -- Return the modified row (NEW) to be inserted or updated.
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_update_node_disabled_status
-BEFORE INSERT OR UPDATE OF last_seen ON nodes
-FOR EACH ROW
-EXECUTE FUNCTION trg_update_node_disabled_status();
-
 `

@@ -196,22 +196,15 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 	}
 	defer c.cleanup()
 
-	type control_msg struct {
-		Status        int32  `json:"status"`
-		Module        string `json:"module"`
-		Serial_number string `json:"serial_number"`
-		Msg           string `json:"msg"`
-	}
-
 	serialNumber := req.NodeUpdateItem.SerialNumber
 
 	// Use high qos
-	topicQos := serialNumber + "/control/qos"
+	topicState := serialNumber + "/control/state"
 	topicConfig := serialNumber + "/config"     // Topic for initial config
 	topicSync := serialNumber + "/control/sync" // Topic for control messages (fixed path)
 
 	// Subscribe to the topic
-	qosToken := c.client.Subscribe(topicQos, 2, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
+	qosToken := c.client.Subscribe(topicState, 2, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
 		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 		payload := msg.Payload()
 		// Parse payload to v1.UpdateState
@@ -229,18 +222,18 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 		updateState = grpc_controlplane.UpdateState(control_msg.Status)
 		streamChan <- updateState
 	})
-	c.subs = append(c.subs, topicQos)
+	c.subs = append(c.subs, topicState)
 
 	if err := qosToken.Error(); err != nil {
 		return status.Errorf(codes.Internal, "failed to subscribe to qos topic")
 	}
 	qosToken.Wait()
 
-	jsonReq, err := json.Marshal(req)
+	jsonReq, err := json.Marshal(req.NodeUpdateItem)
 	if err != nil {
 		log.Err(err).Msg("error marshalling request")
 		// Unsubscribe before returning
-		c.client.Unsubscribe(topicQos)
+		c.client.Unsubscribe(topicState)
 		return status.Errorf(codes.Internal, "failed to marshal request")
 	}
 
@@ -250,7 +243,7 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 	if configToken.Error() != nil {
 		log.Err(configToken.Error()).Msg("error publishing update to node")
 		// Unsubscribe before returning
-		c.client.Unsubscribe(topicQos)
+		c.client.Unsubscribe(topicSync)
 		return configToken.Error()
 	}
 
@@ -333,11 +326,11 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 	//nil in case of success
 	case err := <-doneChan:
 		// Unsubscribe before returning
-		c.client.Unsubscribe(topicQos)
+		c.client.Unsubscribe(topicState)
 		return err
 	case <-timeout:
 		// Unsubscribe before returning
-		c.client.Unsubscribe(topicQos)
+		c.client.Unsubscribe(topicState)
 		return fmt.Errorf("update operation timed out for node %s", serialNumber)
 	}
 }
@@ -464,6 +457,14 @@ type fleetStatus struct {
 	lastGlobalState grpc_controlplane.UpdateState
 }
 
+type control_msg struct {
+	Status        int32  `json:"status"`
+	Module        string `json:"module"`
+	Serial_number string `json:"serial_number"`
+	Msg           string `json:"msg"`
+	TxId          int32  `json:"tx_id,omitempty"`
+}
+
 /********************************** grpc service for control_plane *******************************************/
 func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream grpc.ServerStreamingServer[grpc_controlplane.FleetResponse]) error {
 	log.Info().Msgf("Starting fleet update for %d nodes, tx_id: %d", len(req.NodeUpdateItems), req.Transaction.TxId)
@@ -482,7 +483,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // More reasonable timeout for fleet updates
 	defer cancel()
 
-	// Initialize fleet status tracker
+	// Initialize fleet status tracker with correct initial state
 	status := &fleetStatus{
 		nodes:           make(map[string]grpc_controlplane.UpdateState),
 		expectedNodes:   make(map[string]bool),
@@ -495,10 +496,10 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 	}
 
 	// Subscribe to all node QoS status topics - this is where we receive update state messages
-	topicQos := "+/control/state"
+	topicState := "+/control/state"
 
 	// Subscribe to all node responses
-	qosToken := c.client.Subscribe(topicQos, 2, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
+	qosToken := c.client.Subscribe(topicState, 2, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
 		// Extract serial number from topic
 		parts := strings.Split(msg.Topic(), "/")
 		if len(parts) < 3 {
@@ -507,75 +508,60 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 		}
 		serialNumber := parts[0]
 
-		// Parse update state
-		var updateState grpc_controlplane.UpdateState
-		var errorMsg string
-		var txId int32
+		// Parse payload to get update state
+		var control_msg control_msg
+		payload := msg.Payload()
+		err := json.Unmarshal(payload, &control_msg)
 
-		// Try to unmarshal payload
-		var payload struct {
-			Status int32  `json:"status"`
-			TxId   int32  `json:"tx_id"`
-			Error  string `json:"error,omitempty"`
-		}
-
-		if err := json.Unmarshal(msg.Payload(), &payload); err != nil {
-			fac.logger.Error().Err(err).Str("payload", string(msg.Payload())).Msg("Failed to parse node response")
+		if err != nil {
+			log.Err(err).Msg("error unmarshalling update state")
 			return
 		}
 
-		updateState = grpc_controlplane.UpdateState(payload.Status)
-		txId = payload.TxId
-		errorMsg = payload.Error
-
-		fac.logger.Debug().
-			Str("node", serialNumber).
-			Str("state", updateState.String()).
-			Int32("tx_id", txId).
-			Msg("Node update status received")
+		updateState := grpc_controlplane.UpdateState(control_msg.Status)
+		txId := control_msg.TxId
+		errorMsg := control_msg.Msg
 
 		// Send to processing channel
-		select {
-		case nodeChan <- nodeUpdateMessage{
+		nodeChan <- nodeUpdateMessage{
 			SerialNumber: serialNumber,
 			State:        updateState,
 			TxId:         txId,
 			Timestamp:    time.Now(),
 			Error:        errorMsg,
-		}:
-		case <-ctx.Done():
-			return
 		}
+
+		log.Debug().
+			Str("node", serialNumber).
+			Str("state", updateState.String()).
+			Int32("tx_id", txId).
+			Msg("Received node state update")
 	})
-	c.subs = append(c.subs, topicQos)
+	c.subs = append(c.subs, topicState)
 
 	if err := qosToken.Error(); err != nil {
 		return fmt.Errorf("failed to subscribe to node responses: %w", err)
 	}
 	qosToken.Wait()
 
-	jsonReq, err := json.Marshal(req)
-	// Prepare update payload
-	if err != nil {
-		fac.logger.Error().Err(err).Msg("Failed to marshal update request")
-		return fmt.Errorf("failed to marshal update request: %w", err)
-	}
-
 	// Start fleet update processor
-	go processFleetUpdate(ctx, c, req, stream, nodeChan, doneChan, status, jsonReq)
+	go processFleetUpdate(ctx, c, req, stream, nodeChan, doneChan, status)
 
 	// Wait for completion or timeout
 	select {
 	case err := <-doneChan:
 		// Clean up subscription
-		c.client.Unsubscribe(topicQos)
+		c.client.Unsubscribe(topicState)
+		close(nodeChan) // Close channel to prevent goroutine leaks
+
 		if err != nil {
 			return fmt.Errorf("fleet update failed: %w", err)
 		}
 		log.Info().Msg("Fleet update completed successfully")
 		return nil
 	case <-ctx.Done():
-		c.client.Unsubscribe(topicQos)
+		c.client.Unsubscribe(topicState)
+		close(nodeChan) // Close channel to prevent goroutine leaks
 		return fmt.Errorf("fleet update timed out after %v", 5*time.Minute)
 	}
 }
@@ -589,11 +575,10 @@ func processFleetUpdate(
 	nodeChan chan nodeUpdateMessage,
 	doneChan chan error,
 	status *fleetStatus,
-	configPayload []byte,
 ) {
 
 	// Phase 1: Publish configs to all nodes
-	if err := publishConfigs(ctx, c, req, status, configPayload); err != nil {
+	if err := publishConfigs(ctx, c, req, status); err != nil {
 		doneChan <- err
 		return
 	}
@@ -604,14 +589,21 @@ func processFleetUpdate(
 		return
 	}
 
+	// Initialize the global state
+	status.mu.Lock()
+	status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_PUBLISHED
+	status.mu.Unlock()
+
 	// Track actions taken to avoid duplicates
 	applySent := false
 	ackSent := false
+	rollbackSent := false
 
 	// Process node updates
 	for {
 		select {
 		case <-ctx.Done():
+			doneChan <- fmt.Errorf("context deadline exceeded or canceled")
 			return
 		case msg := <-nodeChan:
 			// Process this node update
@@ -639,6 +631,11 @@ func processFleetUpdate(
 						return
 					}
 
+					// Update global state to APPLY_REQ before sending the request
+					status.mu.Lock()
+					status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_APPLY_REQ
+					status.mu.Unlock()
+
 					if err := sendUpdateApplyRequest(ctx, c, req); err != nil {
 						doneChan <- err
 						return
@@ -659,28 +656,47 @@ func processFleetUpdate(
 						return
 					}
 
+					// Update global state to ACKNOWLEDGED before sending the acknowledgement
+					status.mu.Lock()
+					status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_ACKNOWLEDGED
+					status.mu.Unlock()
+
 					if err := sendUpdateAcknowledgement(ctx, c, req); err != nil {
 						doneChan <- err
 						return
 					}
 
 					ackSent = true
+					log.Info().Msg("Fleet update completed successfully")
 					doneChan <- nil
-					return
+					return // Return here to properly exit the function
 				}
 
 			case grpc_controlplane.UpdateState_UPDATE_ERROR:
-				// Error state received
-				log.Error().Str("node", msg.SerialNumber).Msg("Node reported error, ending update process")
+				// Error state received - implement rollback
+				if !rollbackSent {
+					log.Error().Str("node", msg.SerialNumber).Str("error", msg.Error).Msg("Node reported error, initiating rollback")
 
-				// Send global error state to client
-				if err := sendFleetResponse(stream, grpc_controlplane.UpdateState_UPDATE_ERROR, req.Transaction.TxId,
-					fmt.Sprintf("Update failed on node %s: %s", msg.SerialNumber, msg.Error)); err != nil {
-					log.Error().Err(err).Msg("Failed to send error state")
+					// Send global error state to client
+					if err := sendFleetResponse(stream, grpc_controlplane.UpdateState_UPDATE_ERROR, req.Transaction.TxId,
+						fmt.Sprintf("Update failed on node %s: %s - initiating rollback", msg.SerialNumber, msg.Error)); err != nil {
+						log.Error().Err(err).Msg("Failed to send error state")
+					}
+
+					// Update global state to ROLLBACK before sending the rollback request
+					status.mu.Lock()
+					status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_ROLLBACK
+					status.mu.Unlock()
+
+					// Send rollback request to all nodes
+					if err := sendRollbackRequest(ctx, c, req); err != nil {
+						log.Error().Err(err).Msg("Failed to send rollback request")
+					}
+
+					rollbackSent = true
+					doneChan <- fmt.Errorf("update failed on node %s: %s - rollback initiated", msg.SerialNumber, msg.Error)
+					return
 				}
-
-				doneChan <- fmt.Errorf("update failed on node %s: %s", msg.SerialNumber, msg.Error)
-				return
 			}
 		}
 	}
@@ -691,9 +707,7 @@ func publishConfigs(
 	ctx context.Context,
 	c *client,
 	req *grpc_controlplane.FleetUpdate,
-	status *fleetStatus,
-	configPayload []byte,
-) error {
+	status *fleetStatus) error {
 	log.Info().Msgf("Publishing configs to %d nodes", len(req.NodeUpdateItems))
 
 	for _, node := range req.NodeUpdateItems {
@@ -701,9 +715,14 @@ func publishConfigs(
 		case <-ctx.Done():
 			return fmt.Errorf("context canceled while publishing configs")
 		default:
+			payload, err := json.Marshal(node)
+			if err != nil {
+				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to marshal node")
+				return fmt.Errorf("failed to marshal node %s: %w", node.SerialNumber, err)
+			}
 			// Use the new topic structure
 			topicConfig := node.SerialNumber + "/config"
-			configToken := c.client.Publish(topicConfig, 2, false, configPayload)
+			configToken := c.client.Publish(topicConfig, 2, false, payload)
 			configToken.Wait()
 
 			if err := configToken.Error(); err != nil {
@@ -767,7 +786,8 @@ func updateNodeStatus(
 				Str("node", msg.SerialNumber).
 				Str("previous_global_state", status.lastGlobalState.String()).
 				Str("new_global_state", "UPDATE_ERROR").
-				Msg("Global state changing to ERROR")
+				Str("error", msg.Error).
+				Msg("Global state changing to ERROR due to node error")
 
 			status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_ERROR
 			return grpc_controlplane.UpdateState_UPDATE_ERROR, nil
@@ -780,38 +800,84 @@ func updateNodeStatus(
 	allNodesInState := func(state grpc_controlplane.UpdateState) bool {
 		for serialNumber := range status.expectedNodes {
 			nodeState, exists := status.nodes[serialNumber]
-			if !exists || nodeState < state {
+			if !exists {
 				return false
+			}
+
+			// For state progression check, we need to compare based on the expected sequence
+			// not the raw enum values
+			switch state {
+			case grpc_controlplane.UpdateState_UPDATE_APPLICABLE:
+				// For APPLICABLE state, nodes must be in APPLICABLE state
+				if nodeState != grpc_controlplane.UpdateState_UPDATE_APPLICABLE {
+					return false
+				}
+			case grpc_controlplane.UpdateState_UPDATE_APPLIED:
+				// For APPLIED state, nodes must be in APPLIED state
+				if nodeState != grpc_controlplane.UpdateState_UPDATE_APPLIED {
+					return false
+				}
+			default:
+				// For other states, use direct comparison
+				if nodeState != state {
+					return false
+				}
 			}
 		}
 		return true
 	}
 
-	// Check for UPDATE_APPLICABLE transition
-	if status.lastGlobalState < grpc_controlplane.UpdateState_UPDATE_APPLICABLE &&
+	// Count how many nodes are in each state for logging
+	countNodesInState := func() map[string]int {
+		counts := make(map[string]int)
+		for _, state := range status.nodes {
+			counts[state.String()]++
+		}
+		return counts
+	}
+
+	// Define the state transition sequence based on our expected flow
+	// After PUBLISHED, we expect APPLICABLE
+	if status.lastGlobalState == grpc_controlplane.UpdateState_UPDATE_PUBLISHED &&
 		allNodesInState(grpc_controlplane.UpdateState_UPDATE_APPLICABLE) {
+
+		counts := countNodesInState()
 		log.Info().
 			Str("previous_global_state", status.lastGlobalState.String()).
 			Str("new_global_state", "UPDATE_APPLICABLE").
-			Msg("Global state changing to APPLICABLE")
+			Interface("node_counts", counts).
+			Msg("Global state changing to APPLICABLE - all nodes ready")
 
 		status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_APPLICABLE
 		return grpc_controlplane.UpdateState_UPDATE_APPLICABLE, nil
 	}
 
-	// Check for UPDATE_APPLIED transition
-	if status.lastGlobalState < grpc_controlplane.UpdateState_UPDATE_APPLIED &&
+	// After APPLICABLE and APPLY_REQ, we expect APPLIED
+	if (status.lastGlobalState == grpc_controlplane.UpdateState_UPDATE_APPLICABLE ||
+		status.lastGlobalState == grpc_controlplane.UpdateState_UPDATE_APPLY_REQ) &&
 		allNodesInState(grpc_controlplane.UpdateState_UPDATE_APPLIED) {
+
+		counts := countNodesInState()
 		log.Info().
 			Str("previous_global_state", status.lastGlobalState.String()).
 			Str("new_global_state", "UPDATE_APPLIED").
-			Msg("Global state changing to APPLIED")
+			Interface("node_counts", counts).
+			Msg("Global state changing to APPLIED - all nodes have applied update")
 
 		status.lastGlobalState = grpc_controlplane.UpdateState_UPDATE_APPLIED
 		return grpc_controlplane.UpdateState_UPDATE_APPLIED, nil
 	}
 
-	// No change to global state
+	// Log progress but without changing global state
+	counts := countNodesInState()
+	totalNodes := len(status.expectedNodes)
+	log.Debug().
+		Str("node", msg.SerialNumber).
+		Str("state", msg.State.String()).
+		Interface("node_counts", counts).
+		Int("total_nodes", totalNodes).
+		Msg("Node state updated, waiting for all nodes to reach same state")
+
 	return status.lastGlobalState, nil
 }
 
@@ -887,6 +953,43 @@ func sendUpdateAcknowledgement(
 	return nil
 }
 
+// Send UPDATE_ROLLBACK to all nodes
+func sendRollbackRequest(
+	ctx context.Context,
+	c *client,
+	req *grpc_controlplane.FleetUpdate,
+) error {
+	log.Info().Msg("Sending rollback request to all nodes")
+
+	for _, node := range req.NodeUpdateItems {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context canceled while sending rollback request")
+		default:
+			// Use the new topic structure for sync control messages
+			topicSync := node.SerialNumber + "/control/sync"
+
+			// Create payload with status and transaction ID
+			payload := fmt.Sprintf(`{"status": %d, "tx_id": %d}`,
+				grpc_controlplane.UpdateState_UPDATE_ROLLBACK,
+				req.Transaction.TxId)
+
+			token := c.client.Publish(topicSync, 2, false, []byte(payload))
+			token.Wait()
+
+			if err := token.Error(); err != nil {
+				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send rollback request")
+				// Continue with other nodes even if one fails
+				continue
+			}
+
+			log.Debug().Str("node", node.SerialNumber).Msg("Rollback request sent")
+		}
+	}
+
+	return nil
+}
+
 // Send FleetResponse to client - only for global state changes
 func sendFleetResponse(
 	stream grpc.ServerStreamingServer[grpc_controlplane.FleetResponse],
@@ -900,90 +1003,4 @@ func sendFleetResponse(
 		TxId:        txId,
 		Meta:        meta,
 	})
-}
-
-// marshalFleetUpdateWithEnums handles custom marshalling for FleetUpdate
-// to properly set numeric values for enum fields like ProxyType
-func marshalFleetUpdateWithEnums(req *grpc_controlplane.FleetUpdate) ([]byte, error) {
-	// Create a copy that will be properly marshalled
-	type proxyWithNumericType struct {
-		Name               string `json:"name,omitempty"`
-		ServerEndpointAddr string `json:"server_endpoint_addr,omitempty"`
-		ClientEndpointAddr string `json:"client_endpoint_addr,omitempty"`
-		ProxyType          int32  `json:"proxy_type"`
-	}
-
-	type groupProxyUpdateWithEnums struct {
-		GroupName      string                          `json:"group_name,omitempty"`
-		EndpointConfig *grpc_southbound.EndpointConfig `json:"endpoint_config,omitempty"`
-		LegacyConfig   *grpc_southbound.EndpointConfig `json:"legacy_config,omitempty"`
-		GroupLogLevel  int32                           `json:"group_log_level,omitempty"`
-		Proxies        []proxyWithNumericType          `json:"proxies,omitempty"`
-	}
-
-	type nodeUpdateItemWithEnums struct {
-		SerialNumber     string                      `json:"serial_number,omitempty"`
-		NetworkIndex     int32                       `json:"network_index,omitempty"`
-		Locality         string                      `json:"locality,omitempty"`
-		VersionSetId     string                      `json:"version_set_id,omitempty"`
-		GroupProxyUpdate []groupProxyUpdateWithEnums `json:"group_proxy_update,omitempty"`
-	}
-
-	type fleetUpdateWithEnums struct {
-		Transaction     *grpc_controlplane.Transaction `json:"transaction,omitempty"`
-		NodeUpdateItems []nodeUpdateItemWithEnums      `json:"node_update_items,omitempty"`
-	}
-
-	// Convert the request to our custom structure
-	customReq := fleetUpdateWithEnums{
-		Transaction: req.Transaction,
-	}
-
-	if len(req.NodeUpdateItems) > 0 {
-		customReq.NodeUpdateItems = make([]nodeUpdateItemWithEnums, len(req.NodeUpdateItems))
-
-		for i, nodeItem := range req.NodeUpdateItems {
-			customNodeItem := nodeUpdateItemWithEnums{
-				SerialNumber: nodeItem.SerialNumber,
-				NetworkIndex: nodeItem.NetworkIndex,
-				Locality:     nodeItem.Locality,
-				VersionSetId: nodeItem.VersionSetId,
-			}
-
-			// Handle GroupProxyUpdate
-			if len(nodeItem.GroupProxyUpdate) > 0 {
-				customNodeItem.GroupProxyUpdate = make([]groupProxyUpdateWithEnums, len(nodeItem.GroupProxyUpdate))
-
-				for j, gpu := range nodeItem.GroupProxyUpdate {
-					customGpu := groupProxyUpdateWithEnums{
-						GroupName:      gpu.GroupName,
-						EndpointConfig: gpu.EndpointConfig,
-						LegacyConfig:   gpu.LegacyConfig,
-						GroupLogLevel:  gpu.GroupLogLevel,
-					}
-
-					// Handle proxies with explicit enum type
-					if len(gpu.Proxies) > 0 {
-						customGpu.Proxies = make([]proxyWithNumericType, len(gpu.Proxies))
-
-						for k, proxy := range gpu.Proxies {
-							customGpu.Proxies[k] = proxyWithNumericType{
-								Name:               proxy.Name,
-								ServerEndpointAddr: proxy.ServerEndpointAddr,
-								ClientEndpointAddr: proxy.ClientEndpointAddr,
-								ProxyType:          int32(proxy.ProxyType), // Convert enum to int32
-							}
-						}
-					}
-
-					customNodeItem.GroupProxyUpdate[j] = customGpu
-				}
-			}
-
-			customReq.NodeUpdateItems[i] = customNodeItem
-		}
-	}
-
-	// Marshal with the custom structure that properly handles enum values
-	return json.Marshal(customReq)
 }
