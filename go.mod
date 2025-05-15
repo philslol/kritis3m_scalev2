@@ -29,7 +29,7 @@ require (
 
 require (
 	github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl v1.1.9
-	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250513090041-f629ef786414
+	github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250515105506-1abed072a04e
 	github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250424112622-943bf27c932c
 	github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-20250409145412-ea12e7607035
 )

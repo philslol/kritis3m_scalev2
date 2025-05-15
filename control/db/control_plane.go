@@ -349,7 +349,7 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 			p.client_endpoint_addr,
 
 			-- Hardware Configurations
-			hc.id AS hwconfig_id,
+			hc.id::int AS hwconfig_id,
 			hc.device AS hwconfig_device,
 			hc.ip_cidr::text AS hwconfig_ip_cidr
 		FROM target_nodes tn
@@ -388,20 +388,20 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 				proxyType      string
 				serverEndpoint string
 				clientEndpoint string
-				hwconfigID     int32
-				hwconfigDevice string
-				hwconfigIPCIDR string
+				hwconfigID     *int32
+				hwconfigDevice *string
+				hwconfigIPCIDR *string
 			)
 
 			err := rows.Scan(
-				&serialNumber, &networkIndex, &locality, &versionSetId,
-				&groupName, &groupLogLevel,
-				&endpointConfig.Name, &endpointConfig.MutualAuth, &endpointConfig.NoEncryption,
-				&endpointConfig.ASLKeyExchangeMethod, &endpointConfig.Cipher,
-				&legacyConfig.Name, &legacyConfig.MutualAuth, &legacyConfig.NoEncryption,
-				&legacyConfig.ASLKeyExchangeMethod, &legacyConfig.Cipher,
-				&proxyName, &proxyState, &proxyType, &serverEndpoint, &clientEndpoint,
-				&hwconfigID, &hwconfigDevice, &hwconfigIPCIDR,
+				&serialNumber, &networkIndex, &locality, &versionSetId, //4
+				&groupName, &groupLogLevel, //6
+				&endpointConfig.Name, &endpointConfig.MutualAuth, &endpointConfig.NoEncryption, //9
+				&endpointConfig.ASLKeyExchangeMethod, &endpointConfig.Cipher, //11
+				&legacyConfig.Name, &legacyConfig.MutualAuth, &legacyConfig.NoEncryption, //14
+				&legacyConfig.ASLKeyExchangeMethod, &legacyConfig.Cipher, //16
+				&proxyName, &proxyState, &proxyType, &serverEndpoint, &clientEndpoint, //21
+				&hwconfigID, &hwconfigDevice, &hwconfigIPCIDR, //24
 			)
 			if err != nil {
 				return fmt.Errorf("failed to scan row: %w", err)
@@ -416,9 +416,29 @@ func (s *StateManager) GetFleetUpdateOptimized(ctx context.Context, versionSetId
 					Locality:         locality,
 					VersionSetId:     versionSetId,
 					GroupProxyUpdate: []*grpc_control_plane.GroupProxyUpdate{},
+					HardwareConfig:   []*grpc_southbound.HardwareConfig{},
 				}
 				nodeMap[serialNumber] = node
 				nodes = append(nodes, node)
+			}
+
+			// Add hardware config if it exists
+			if hwconfigID != nil {
+				hwConfig := &grpc_southbound.HardwareConfig{
+					Id:     *hwconfigID,
+					Device: "",
+					IpCidr: "", // Default to empty string
+				}
+
+				// Only set IpCidr if the pointer is not nil
+				if hwconfigIPCIDR != nil {
+					hwConfig.IpCidr = *hwconfigIPCIDR
+				}
+				if hwconfigDevice != nil {
+					hwConfig.Device = *hwconfigDevice
+				}
+
+				node.HardwareConfig = append(node.HardwareConfig, hwConfig)
 			}
 
 			// Skip if no group info
