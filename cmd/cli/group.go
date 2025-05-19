@@ -6,12 +6,11 @@ import (
 	"text/tabwriter"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	log.Debug().Msg("Registering group commands")
+	cli_logger.Debug().Msg("Registering group commands")
 	rootCmd.AddCommand(groupCli)
 
 	// Create command flags
@@ -82,7 +81,7 @@ var createGroupCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
@@ -98,7 +97,7 @@ var createGroupCmd = &cobra.Command{
 
 		rsp, err := client.CreateGroup(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create group")
+			cli_logger.Fatal().Err(err).Msg("Failed to create group")
 		}
 
 		if HasMachineOutputFlag() {
@@ -125,7 +124,7 @@ var readGroupCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
@@ -153,7 +152,7 @@ var readGroupCmd = &cobra.Command{
 
 		rsp, err := client.GetGroup(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get group")
+			cli_logger.Fatal().Err(err).Msg("Failed to get group")
 		}
 
 		if HasMachineOutputFlag() {
@@ -182,7 +181,7 @@ var updateGroupCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
@@ -204,7 +203,7 @@ var updateGroupCmd = &cobra.Command{
 				},
 			}
 		} else {
-			log.Fatal().Msg("Must specify either id or version-number and name")
+			cli_logger.Fatal().Msg("Must specify either id or version-number and name")
 		}
 
 		if cmd.Flags().Changed("endpoint-config-name") {
@@ -221,10 +220,10 @@ var updateGroupCmd = &cobra.Command{
 
 		_, err = client.UpdateGroup(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to update group")
+			cli_logger.Fatal().Err(err).Msg("Failed to update group")
 		}
 
-		log.Info().Msg("Group updated successfully")
+		cli_logger.Info().Msg("Group updated successfully")
 		return nil
 	},
 }
@@ -238,7 +237,7 @@ var deleteGroupCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
@@ -249,10 +248,10 @@ var deleteGroupCmd = &cobra.Command{
 
 		_, err = client.DeleteGroup(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to delete group")
+			cli_logger.Fatal().Err(err).Msg("Failed to delete group")
 		}
 
-		log.Info().Msg("Group deleted successfully")
+		cli_logger.Info().Msg("Group deleted successfully")
 		return nil
 	},
 }
@@ -268,7 +267,7 @@ var listGroupsCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
@@ -286,7 +285,7 @@ var listGroupsCmd = &cobra.Command{
 
 		rsp, err := client.ListGroups(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list groups")
+			cli_logger.Fatal().Err(err).Msg("Failed to list groups")
 		}
 
 		if HasMachineOutputFlag() {

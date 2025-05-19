@@ -7,7 +7,10 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog"
 )
+
+var log zerolog.Logger
 
 func (s *StateManager) UpdateWhere(ctx context.Context, table string, updates map[string]any, where string) error {
 	fields := []string{}

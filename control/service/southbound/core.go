@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	grpc_est "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/est"
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/db"
+	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -35,25 +37,29 @@ type LogService struct {
 	filepath string
 	db       *db.StateManager
 	addr     string
+	logger   zerolog.Logger
 }
 
 type HelloService struct {
-	db   *db.StateManager
-	addr string
+	db     *db.StateManager
+	addr   string
+	logger zerolog.Logger
 }
 
-func NewHelloService(db *db.StateManager, addr string) *HelloService {
+func NewHelloService(db *db.StateManager, addr string, log_config types.LogConfig) *HelloService {
 	return &HelloService{
-		db:   db,
-		addr: addr,
+		db:     db,
+		addr:   addr,
+		logger: types.CreateLogger("hello", log_config.Level, log_config.File),
 	}
 }
 
-func NewLogService(db *db.StateManager, addr string, logfile string) *LogService {
+func NewLogService(db *db.StateManager, addr string, log_config types.LogConfig) *LogService {
 	return &LogService{
 		db:       db,
 		addr:     addr,
-		filepath: logfile,
+		filepath: log_config.File,
+		logger:   types.CreateLogger("log", log_config.Level, log_config.File),
 	}
 }
 
@@ -64,8 +70,6 @@ func (ls *LogService) LogNodeTransaction(ctx context.Context) error {
 		return err
 	}
 	defer file.Close()
-
-	logger := zerolog.New(file).With().Timestamp().Logger()
 
 	client, conn, err := getControlPlaneClient(ls.addr)
 	if err != nil {
@@ -90,45 +94,38 @@ func (ls *LogService) LogNodeTransaction(ctx context.Context) error {
 				log_response, err := stream.Recv()
 				if err != nil {
 					if err == io.EOF {
-						logger.Info().Msg("Log stream closed")
+						ls.logger.Info().Msg("Log stream closed")
 						errChan <- nil
 						return
 					}
-					logger.Error().Err(err).Msg("Error receiving log response")
+					ls.logger.Error().Err(err).Msg("Error receiving log response")
 					errChan <- err
 					return
 				}
 
-				// Create event with serial number
-				event := logger.With().Str("serial_number", log_response.SerialNumber)
-
-				// Add module if available
-				if log_response.Module != nil {
-					event = event.Str("module", *log_response.Module)
-				}
-				lg := event.Logger()
+				log_response.Message = strings.ReplaceAll(log_response.Message, "\n", " ")
 
 				// Log with appropriate level
+				msg := fmt.Sprintf("node: %s,module: %s: msg: %s", log_response.SerialNumber, *log_response.Module, log_response.Message)
+
 				if log_response.Level != nil {
 					switch *log_response.Level {
 					case 0:
-						lg.Trace().Msg(log_response.Message)
+						ls.logger.Trace().Msg(msg)
 					case 1:
-						lg.Debug().Msg(log_response.Message)
+						ls.logger.Error().Msg(msg)
 					case 2:
-						lg.Info().Msg(log_response.Message)
+						ls.logger.Warn().Msg(msg)
 					case 3:
-						lg.Warn().Msg(log_response.Message)
+						ls.logger.Info().Msg(msg)
 					case 4:
-						lg.Error().Msg(log_response.Message)
-					case 5:
-						lg.Fatal().Msg(log_response.Message)
+						ls.logger.Debug().Msg(msg)
 					default:
-						lg.Info().Msg(log_response.Message)
+						ls.logger.Info().Msg(msg)
 					}
 				} else {
 					// Default to Info level when level not provided
-					lg.Info().Msg(log_response.Message)
+					ls.logger.Info().Msg(msg)
 				}
 			}
 		}
@@ -168,11 +165,11 @@ func (hs *HelloService) Hello(ctx context.Context) error {
 				response, err := stream.Recv()
 				if err != nil {
 					if err == io.EOF {
-						log.Info().Msg("Hello stream closed")
+						hs.logger.Info().Msg("Hello stream closed")
 						errChan <- nil
 						return
 					}
-					log.Error().Err(err).Msg("Error receiving hello response")
+					hs.logger.Error().Err(err).Msg("Error receiving hello response")
 					errChan <- err
 					return
 				}
@@ -184,17 +181,17 @@ func (hs *HelloService) Hello(ctx context.Context) error {
 				//it is not intendet to close hello service, when db has an error
 				err = hs.db.UpdateWhere(db_context, "nodes", map[string]any{"last_seen": time.Now()}, where_string)
 				if err != nil {
-					log.Error().Err(err).Msg("Error updating node last seen")
+					hs.logger.Error().Err(err).Msg("Error updating node last seen")
 				}
 			}
 		}
 	}()
 	select {
 	case <-ctx.Done():
-		log.Info().Msg("Hello service context cancelled")
+		hs.logger.Info().Msg("Hello service context cancelled")
 		return ctx.Err()
 	case err := <-errChan:
-		log.Error().Err(err).Msg("Hello service error")
+		hs.logger.Error().Err(err).Msg("Hello service error")
 		return err
 	}
 }

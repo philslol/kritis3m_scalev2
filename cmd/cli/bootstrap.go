@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +20,7 @@ var resetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		app, err := getKritis3mScaleApp()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create kritis3m-scale instance")
+			cli_logger.Fatal().Err(err).Msg("Failed to create kritis3m-scale instance")
 		}
 
 		sm, _, cancel, err := app.GetRawDB(10 * time.Second)
@@ -29,10 +28,10 @@ var resetCmd = &cobra.Command{
 
 		err = sm.ResetDatabase()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to reset database")
+			cli_logger.Fatal().Err(err).Msg("Failed to reset database")
 		}
 
-		log.Info().Msg("Database reset successfully")
+		cli_logger.Info().Msg("Database reset successfully")
 		return nil
 	},
 }
@@ -45,7 +44,7 @@ var bootstrapCmd = &cobra.Command{
 
 		app, err := getKritis3mScaleApp()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create kritis3m-scale instance")
+			cli_logger.Fatal().Err(err).Msg("Failed to create kritis3m-scale instance")
 		}
 
 		// Initialize database schema
@@ -54,15 +53,15 @@ var bootstrapCmd = &cobra.Command{
 		defer cancel()
 
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get raw database")
+			cli_logger.Fatal().Err(err).Msg("Failed to get raw database")
 		}
 
 		err = sm.InitializeSchema()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to initialize database schema")
+			cli_logger.Fatal().Err(err).Msg("Failed to initialize database schema")
 		}
 
-		log.Info().Msg("Creating initial version set")
+		cli_logger.Info().Msg("Creating initial version set")
 
 		defaultVersionSet := types.VersionSet{
 			Name:        "initial version set",
@@ -72,9 +71,9 @@ var bootstrapCmd = &cobra.Command{
 		}
 		id, err := sm.CreateVersionSet(ctx, defaultVersionSet)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create initial version set")
+			cli_logger.Fatal().Err(err).Msg("Failed to create initial version set")
 		}
-		log.Info().Msgf("Created initial version set with ID: %s", id)
+		cli_logger.Info().Msgf("Created initial version set with ID: %s", id)
 		defaultVersionSet.ID = id
 
 		// Create default version transition
@@ -83,11 +82,11 @@ var bootstrapCmd = &cobra.Command{
 			Status:         types.VersionTransitionActive,
 			CreatedBy:      "admin",
 		}
-		err = sm.CreateVersionTransition(ctx, defaultTransition)
+		_, err = sm.CreateVersionTransition(ctx, defaultTransition)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create default version transition")
+			cli_logger.Fatal().Err(err).Msg("Failed to create default version transition")
 		}
-		log.Info().Msg("Created default version transition")
+		cli_logger.Info().Msg("Created default version transition")
 
 		return nil
 	},

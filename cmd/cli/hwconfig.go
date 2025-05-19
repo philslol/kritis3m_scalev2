@@ -6,12 +6,11 @@ import (
 	"text/tabwriter"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	log.Debug().Msg("Registering hardware config commands")
+	cli_logger.Debug().Msg("Registering hardware config commands")
 	rootCmd.AddCommand(hwConfigCli)
 
 	// Create command flags
@@ -74,14 +73,14 @@ var createHwConfigCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		device, _ := cmd.Flags().GetString("device")
 		ipCidr, _ := cmd.Flags().GetString("ip-cidr")
-		log.Info().Msgf("ipCidr: %s", ipCidr)
+		cli_logger.Info().Msgf("ipCidr: %s", ipCidr)
 		nodeSerial, _ := cmd.Flags().GetString("serial-number")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
 		createdBy, _ := cmd.Flags().GetString("created-by")
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -97,10 +96,10 @@ var createHwConfigCmd = &cobra.Command{
 
 		rsp, err := client.CreateHardwareConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create hardware config")
+			cli_logger.Fatal().Err(err).Msg("Failed to create hardware config")
 		}
 
-		log.Info().Msgf("Hardware config created: %v", rsp)
+		cli_logger.Info().Msgf("Hardware config created: %v", rsp)
 		return nil
 	},
 }
@@ -117,7 +116,7 @@ var readHwConfigCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -152,7 +151,7 @@ var readHwConfigCmd = &cobra.Command{
 
 		rsp, err := client.GetHardwareConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get hardware config")
+			cli_logger.Fatal().Err(err).Msg("Failed to get hardware config")
 		}
 
 		if HasMachineOutputFlag() {
@@ -177,7 +176,7 @@ var updateHwConfigCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -192,10 +191,10 @@ var updateHwConfigCmd = &cobra.Command{
 
 		_, err = client.UpdateHardwareConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to update hardware config")
+			cli_logger.Fatal().Err(err).Msg("Failed to update hardware config")
 		}
 
-		log.Info().Msg("Hardware config updated successfully")
+		cli_logger.Info().Msg("Hardware config updated successfully")
 		return nil
 	},
 }
@@ -209,7 +208,7 @@ var deleteHwConfigCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -221,10 +220,10 @@ var deleteHwConfigCmd = &cobra.Command{
 
 		_, err = client.DeleteHardwareConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to delete hardware config")
+			cli_logger.Fatal().Err(err).Msg("Failed to delete hardware config")
 		}
 
-		log.Info().Msg("Hardware config deleted successfully")
+		cli_logger.Info().Msg("Hardware config deleted successfully")
 		return nil
 	},
 }
@@ -238,7 +237,7 @@ var listHwConfigsCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -252,7 +251,7 @@ var listHwConfigsCmd = &cobra.Command{
 
 		rsp, err := client.GetHardwareConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list hardware configs")
+			cli_logger.Fatal().Err(err).Msg("Failed to list hardware configs")
 		}
 
 		if HasMachineOutputFlag() {

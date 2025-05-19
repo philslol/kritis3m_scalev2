@@ -4,12 +4,11 @@ import (
 	"strings"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	log.Debug().Msg("Registering cert_req commands")
+	cli_logger.Debug().Msg("Registering cert_req commands")
 	cert_req.Flags().StringP("node-serial", "n", "", "Node serial number")
 	cert_req.MarkFlagRequired("node-serial")
 
@@ -44,7 +43,7 @@ var cert_req = &cobra.Command{
 		nodeSerial, _ := cmd.Flags().GetString("node-serial")
 		plane, _ := cmd.Flags().GetString("plane")
 		if plane != "dataplane" && plane != "controlplane" {
-			log.Fatal().Msg("Invalid plane specified. Please use either \"dataplane\" or \"controlplane\".")
+			cli_logger.Fatal().Msg("Invalid plane specified. Please use either \"dataplane\" or \"controlplane\".")
 		}
 
 		// Get the new optional flags
@@ -55,7 +54,7 @@ var cert_req = &cobra.Command{
 		defer conn.Close()
 		defer cancel()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		southbound_plane := grpc_southbound.CertType_value[strings.ToUpper(plane)]
@@ -81,9 +80,9 @@ var cert_req = &cobra.Command{
 		//send request
 		resp, err := client.TriggerCertReq(ctx, req)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to send certificate request")
+			cli_logger.Fatal().Err(err).Msg("Failed to send certificate request")
 		}
-		log.Info().Msgf("Returncode is %d", resp.Retcode)
+		cli_logger.Info().Msgf("Returncode is %d", resp.Retcode)
 		return nil
 	},
 }
@@ -98,7 +97,7 @@ var cert_fleet = &cobra.Command{
 
 		plane, _ := cmd.Flags().GetString("plane")
 		if plane != "dataplane" && plane != "controlplane" {
-			log.Fatal().Msg("Invalid plane specified. Please use either \"dataplane\" or \"controlplane\".")
+			cli_logger.Fatal().Msg("Invalid plane specified. Please use either \"dataplane\" or \"controlplane\".")
 		}
 
 		// Get the new optional flags
@@ -109,7 +108,7 @@ var cert_fleet = &cobra.Command{
 		defer conn.Close()
 		defer cancel()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		southbound_plane := grpc_southbound.CertType_value[strings.ToUpper(plane)]
@@ -135,9 +134,9 @@ var cert_fleet = &cobra.Command{
 		//send request
 		resp, err := client.TriggerFleetCertReq(ctx, req)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to send certificate request")
+			cli_logger.Fatal().Err(err).Msg("Failed to send certificate request")
 		}
-		log.Info().Msgf("Returncode is %d", resp.Retcode)
+		cli_logger.Info().Msgf("Returncode is %d", resp.Retcode)
 		return nil
 	},
 }

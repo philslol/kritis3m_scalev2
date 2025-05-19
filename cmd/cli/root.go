@@ -6,13 +6,14 @@ import (
 
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 const (
 	deprecateNamespaceMessage = "use --user"
 )
+
+var cli_logger zerolog.Logger
 
 var outputFormat string
 
@@ -37,39 +38,32 @@ func initConfig() {
 	// If the --config flag is not set, use the default value from the flag definition
 	if cfgFile == "" {
 		cfgFile = "./server/config.yaml"
-		log.Debug().Msgf("using default config file %s", cfgFile)
 	} else {
-		log.Debug().Msgf("using config file %s", cfgFile)
+		cli_logger.Debug().Msgf("using config file %s", cfgFile)
 	}
-	log.Debug().Msg("in function initconfig root")
-
-	// // Convert the path to absolute for clarity
-	// cfgFile, _ = filepath.Abs(cfgFile)
 
 	// Attempt to load the configuration
 	err := types.LoadConfig(cfgFile, true)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("Error loading config file %s", cfgFile)
+		cli_logger.Fatal().Err(err).Msgf("Error loading config file %s", cfgFile)
 	}
 	cfg, err := types.GetKritis3mScaleConfig()
 	if err != nil {
-		log.Fatal().Caller().Err(err).Msg("Failed to get kritis3m-scale configuration")
+		cli_logger.Fatal().Caller().Err(err).Msg("Failed to get kritis3m-scale configuration")
 	}
+
+	cli_logger = types.CreateLogger("cli", cfg.CLILog.Level, cfg.CLILog.File)
 
 	machineOutput := HasMachineOutputFlag()
 
 	zerolog.SetGlobalLevel(cfg.Log.Level)
-	log.Debug().Msgf("logger with global level %s", zerolog.FormattedLevels[zerolog.GlobalLevel()])
+	cli_logger.Debug().Msgf("logger with global level %s", zerolog.FormattedLevels[zerolog.GlobalLevel()])
 
 	// If the user has requested a "node" readable format,
 	// then disable login so the output remains valid.
 	if machineOutput {
-		log.Debug().Msg("machine output. Disabled logging")
+		cli_logger.Debug().Msg("machine output. Disabled logging")
 		zerolog.SetGlobalLevel(zerolog.Disabled)
-	}
-
-	if cfg.Log.Format == types.JSONLogFormat {
-		log.Logger = log.Output(os.Stdout)
 	}
 
 }
@@ -88,7 +82,7 @@ func Execute() {
 		os.Exit(1)
 		return
 	}
-	log.Debug().Msg("exit")
+	cli_logger.Debug().Msg("exit")
 }
 
 // GetRootCommand returns the root command for testing purposes

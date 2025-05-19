@@ -1,13 +1,14 @@
 package main
 
 import (
+	"os"
+	"time"
+
 	"github.com/jagottsicher/termcolor"
 	"github.com/philslol/kritis3m_scalev2/cmd/cli"
 	_ "github.com/philslol/kritis3m_scalev2/cmd/cli"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"os"
-	"time"
 )
 
 func main() {
@@ -25,8 +26,6 @@ func main() {
 		// no color, return text as is.
 		colors = false
 	}
-
-	log.Debug().Msg("in function main")
 
 	// Adhere to no-color.org manifesto of allowing users to
 	// turn off color in cli/services

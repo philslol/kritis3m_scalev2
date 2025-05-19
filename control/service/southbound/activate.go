@@ -9,6 +9,7 @@ import (
 	grpc_controlplane "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/control_plane"
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/gofrs/uuid/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
@@ -51,6 +52,8 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 	var fleetUpdate *grpc_controlplane.FleetUpdate
 	var description string
 	var transactionType types.TransactionType
+	var version_transition_id int
+	var fromVersionTransition *int = nil
 
 	if req.GroupName != nil && *req.GroupName != "" {
 		// This is a group update
@@ -86,13 +89,46 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 			ToVersionSetID: uuid_version_set,
 			Status:         "pending",
 			CreatedBy:      "system",
+			TransactionID:  int(tx),
+			StartedAt:      time.Now(),
 		}
+		var last_version_transition_id int
+		err := sb.db.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+			query := `
+			SELECT id FROM version_transitions
+			WHERE status = 'active' and disabled_at is NULL
+			LIMIT 1
+			`
+			rows, err := tx.Query(ctx, query)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				err = rows.Scan(&last_version_transition_id)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 
-		err = sb.db.CreateVersionTransition(ctx, transition)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to get last version transition id")
+			fromVersionTransition = nil
+		} else if last_version_transition_id != 0 {
+			fromVersionTransition = &last_version_transition_id
+		} else {
+			fromVersionTransition = nil
+		}
+		transition.FromVersionTransition = fromVersionTransition
+
+		version_transition_id, err = sb.db.CreateVersionTransition(ctx, transition)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to create version transition")
 			return nil, status.Error(codes.Internal, "Failed to create version transition")
 		}
+
 	}
 
 	// Get client with error handling
@@ -121,6 +157,8 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 
 	var retcode int32
 	var lastError error
+	var finalState types.TransactionState
+	var finalDescription string
 
 	// Create done channel for graceful shutdown
 	done := make(chan struct{})
@@ -128,9 +166,25 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 
 	// Start goroutine to handle stream receiving
 	go func() {
+		defer func() {
+			// If we haven't set a final state yet, mark as error
+			if finalState == "" {
+				finalState = types.TransactionStateError
+				finalDescription = "Connection closed unexpectedly"
+			}
+			select {
+			case done <- struct{}{}:
+			default:
+				// Channel already closed, ignore
+			}
+		}()
+
 		for {
 			select {
 			case <-ctx.Done():
+				// Context was cancelled, set error state and return
+				finalState = types.TransactionStateError
+				finalDescription = fmt.Sprintf("Operation cancelled: %v", ctx.Err())
 				return
 			case <-done:
 				return
@@ -138,82 +192,57 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 				resp, err := stream.Recv()
 				if err != nil {
 					if err == io.EOF {
+						// Connection closed by peer, mark as success if no errors occurred
+						if finalState == "" {
+							finalState = types.TransactionStateApplied
+							finalDescription = "Update completed successfully"
+						}
 						return
 					}
 					lastError = err
 					log.Error().Err(err).Msg("Failed to receive fleet update response")
+					finalState = types.TransactionStateError
+					finalDescription = fmt.Sprintf("Stream error: %v", err)
 					return
 				}
 
-				// Process global fleet state update
-				log.Info().
-					Str("state", resp.UpdateState.String()).
-					Int32("tx_id", resp.TxId).
-					Str("meta", resp.Meta).
-					Msg("Fleet update state changed")
-
-				// Log transaction for each node with the current global state
-				for _, node := range fleetUpdate.NodeUpdateItems {
-					_, err = sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
-						TransactionID: int(tx),
-						NodeSerial:    node.SerialNumber,
-						VersionSetID:  uuid_version_set,
-						State:         types.TransactionState(resp.UpdateState),
-					})
-
-					if err != nil {
-						lastError = err
-						log.Error().Err(err).Msg("Failed to log transaction")
-						return
-					}
+				// Map update state to transaction state
+				var state types.TransactionState
+				switch resp.UpdateState {
+				case grpc_controlplane.UpdateState_UPDATE_APPLIED:
+					state = types.TransactionStateApplied
+				case grpc_controlplane.UpdateState_UPDATE_ERROR:
+					state = types.TransactionStateError
+				case grpc_controlplane.UpdateState_UPDATE_APPLY_REQ:
+					state = types.TransactionStateApplicable
+				case grpc_controlplane.UpdateState_UPDATE_APPLICABLE:
+					state = types.TransactionStateApplicable
+				case grpc_controlplane.UpdateState_UPDATE_PUBLISHED:
+					state = types.TransactionStatePublished
 				}
 
-				// Handle terminal states
-				if resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR || resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
-					if resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_ERROR {
-						completed_at := time.Now()
-						error_state := types.TransactionStateError
-						error_description := fmt.Sprintf("Failed to apply update: %s", resp.Meta)
-						sb.db.UpdateTransaction(ctx, int(tx), &completed_at, &error_state, &error_description)
-						retcode = -1
-						// Update version transition status if this was a version update
-						if transactionType == types.TransactionTypeVersionUpdate {
-							err = sb.db.UpdateVersionTransitionStatus(ctx, int(tx), "failed")
-							if err != nil {
-								log.Error().Err(err).Msg("Failed to update version transition status")
-							}
-						}
-					} else if resp.UpdateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
-						completed_at := time.Now()
-						applied_state := types.TransactionStateApplied
-						applied_description := "Update applied successfully"
-						sb.db.UpdateTransaction(ctx, int(tx), &completed_at, &applied_state, &applied_description)
-						retcode = 0
-						// Update version transition status if this was a version update
-						if transactionType == types.TransactionTypeVersionUpdate {
-							err = sb.db.UpdateVersionTransitionStatus(ctx, int(tx), "active")
-							if err != nil {
-								log.Error().Err(err).Msg("Failed to update version transition status")
-							}
-						}
-					}
+				// Log node transaction
+				_, err = sb.db.LogNodeTransaction(ctx, &types.NodeTransactionLog{
+					TransactionID: int(tx),
+					NodeSerial:    resp.SerialNumber,
+					VersionSetID:  uuid_version_set,
+					State:         state,
+					Timestamp:     resp.Timestamp.AsTime(),
+				})
+				if err != nil {
+					log.Error().Err(err).Msg("Failed to log node transaction")
+				}
 
-					// Mark transaction as completed
-					where := fmt.Sprintf("id = %d", tx)
-					err = sb.db.UpdateWhere(ctx, "transactions", map[string]any{
-						"completed_at": time.Now(),
-					}, where)
-
-					if err != nil {
-						lastError = err
-						log.Error().Err(err).Msg("Failed to set transaction completed")
-						return
-					}
+				// Handle error state
+				if state == types.TransactionStateError {
+					finalState = types.TransactionStateError
+					finalDescription = fmt.Sprintf("Node %s reported error: %s", resp.SerialNumber, *resp.Meta)
 					return
 				}
 			}
 		}
 	}()
+
 	// Wait for completion or timeout
 	select {
 	case <-ctx.Done():
@@ -221,6 +250,14 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 			if logErr := sb.logTransactionFailure(ctx, tx, "fleet", uuid_version_set, "Operation timed out"); logErr != nil {
 				log.Error().Err(logErr).Msg("Failed to log timeout")
 			}
+			// get update type fleet or group
+			if transactionType == types.TransactionTypeVersionUpdate {
+				err = sb.db.UpdateVersionTransitionStatus(ctx, version_transition_id, "failed", nil)
+				if err != nil {
+					log.Error().Err(err).Msg("Failed to update version transition status")
+				}
+			}
+
 			return nil, status.Error(codes.DeadlineExceeded, "Operation timed out")
 		}
 		return nil, ctx.Err()
@@ -228,6 +265,42 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 		if lastError != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("Operation failed: %v", lastError))
 		}
+
+		// Update transaction with final state
+		completed_at := time.Now()
+		err = sb.db.UpdateTransaction(ctx, int(tx), &completed_at, &finalState, &finalDescription)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to update transaction")
+		}
+
+		// Update version transition if needed
+		if transactionType == types.TransactionTypeVersionUpdate {
+			status := "failed"
+			if finalState == types.TransactionStateApplied {
+				status = "active"
+
+				// revoke old version transition
+				disabled_at := time.Now()
+				if fromVersionTransition != nil {
+					err = sb.db.UpdateVersionTransitionStatus(ctx, *fromVersionTransition, "disabled", &disabled_at)
+					if err != nil {
+						log.Error().Err(err).Msg("Failed to revoke old version transition")
+					}
+				}
+			}
+			err = sb.db.UpdateVersionTransitionStatus(ctx, version_transition_id, status, nil)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to update version transition status")
+			}
+		}
+
+		// Set return code based on final state
+		if finalState == types.TransactionStateError {
+			retcode = -1
+		} else {
+			retcode = 0
+		}
+
 		return &grpc_southbound.ActivateResponse{
 			Retcode: retcode,
 		}, nil
@@ -342,6 +415,7 @@ func (sb *SouthboundService) ActivateNode(ctx context.Context, req *grpc_southbo
 					NodeSerial:    req.SerialNumber,
 					VersionSetID:  uuid_version_set,
 					State:         state,
+					Timestamp:     stream_resp.Timestamp.AsTime(),
 				})
 				if err != nil {
 					lastError = err

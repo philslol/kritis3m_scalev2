@@ -13,7 +13,6 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/philslol/kritis3m_scalev2/control"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v3"
@@ -30,7 +29,7 @@ func getClient() (context.Context, grpc_southbound.SouthboundClient, *grpc.Clien
 		return nil, nil, nil, nil, fmt.Errorf("failed to load configuration while creating headscale instance: %w", err)
 	}
 
-	log.Debug().
+	cli_logger.Debug().
 		Dur("timeout", cfg.CliConfig.Timeout).
 		Msgf("Setting timeout")
 
@@ -39,11 +38,11 @@ func getClient() (context.Context, grpc_southbound.SouthboundClient, *grpc.Clien
 	grpcOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 
 	address := cfg.CliConfig.ServerAddr
-	log.Trace().Caller().Str("address", address).Msg("Connecting via gRPC")
+	cli_logger.Trace().Caller().Str("address", address).Msg("Connecting via gRPC")
 
 	conn, err := grpc.NewClient(address, grpcOptions...)
 	if err != nil {
-		log.Fatal().Caller().Err(err).Msgf("Could not connect: %v", err)
+		cli_logger.Fatal().Caller().Err(err).Msgf("Could not connect: %v", err)
 		os.Exit(-1) // we get here if logging is suppressed (i.e., json output)
 	}
 
@@ -94,17 +93,17 @@ func SuccessOutput(result interface{}, override string, outputFormat string) {
 	case "json":
 		jsonBytes, err = json.MarshalIndent(result, "", "\t")
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to unmarshal output")
+			cli_logger.Fatal().Err(err).Msg("failed to unmarshal output")
 		}
 	case "json-line":
 		jsonBytes, err = json.Marshal(result)
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to unmarshal output")
+			cli_logger.Fatal().Err(err).Msg("failed to unmarshal output")
 		}
 	case "yaml":
 		jsonBytes, err = yaml.Marshal(result)
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to unmarshal output")
+			cli_logger.Fatal().Err(err).Msg("failed to unmarshal output")
 		}
 	default:
 		//nolint
@@ -138,7 +137,7 @@ func PrintAsTable(items interface{}, columns []TableColumn) {
 		val = val.Elem()
 	}
 	if val.Kind() != reflect.Slice {
-		log.Error().Msg("Input must be a slice")
+		cli_logger.Error().Msg("Input must be a slice")
 		return
 	}
 

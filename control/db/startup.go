@@ -9,7 +9,7 @@ import (
 	pgxuuid "github.com/jackc/pgx-gofrs-uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog/log"
+	"github.com/philslol/kritis3m_scalev2/control/types"
 )
 
 type StateManager struct {
@@ -45,9 +45,11 @@ func (c Config) BuildConnectionString() string {
 	)
 }
 
-func NewStateManager(ctx context.Context) (*StateManager, error) {
+func NewStateManager(ctx context.Context, log_cfg types.LogConfig) (*StateManager, error) {
 	log.Trace().Msg("in function new Statemanager")
 	dbConfig := DefaultConfig()
+
+	log = types.CreateLogger("db", log_cfg.Level, log_cfg.File)
 
 	// Override with environment variables if needed
 	if envHost := os.Getenv("DB_HOST"); envHost != "" {

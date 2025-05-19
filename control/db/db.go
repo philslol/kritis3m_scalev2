@@ -3,7 +3,7 @@ package db
 const schemaSQL = `
  CREATE TYPE proxy_type AS ENUM ('not_specifed','forward', 'reverse', 'tlstls');
  CREATE TYPE version_state AS ENUM ('draft', 'pending_deployment', 'active', 'disabled');
- CREATE TYPE version_transition_status AS ENUM ('pending', 'active', 'failed', 'rollback');
+ CREATE TYPE version_transition_status AS ENUM ('pending', 'active', 'failed', 'rollback', 'disabled');
  CREATE TYPE transaction_type AS ENUM ('node_update', 'group_update', 'version_update');
  CREATE TYPE transaction_state AS ENUM ('error', 'unknown', 'published', 'received', 'applicable', 'applied');
  CREATE TYPE operation_type AS ENUM ('INSERT', 'UPDATE', 'DELETE', 'ADD');
@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS version_transitions (
                                                    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                                                    transaction_id INT REFERENCES transactions(id),
                                                    completed_at TIMESTAMPTZ,
+                                                   disabled_at TIMESTAMPTZ DEFAULT NULL,
                                                    created_by TEXT NOT NULL,
                                                    metadata JSONB
 );

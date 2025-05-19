@@ -21,7 +21,10 @@ type Broker struct {
 	broker *mqtt.Server
 }
 
+var est_log zerolog.Logger
+
 func NewBroker(broker_cfg types.BrokerConfig) *Broker {
+	est_log = types.CreateLogger("broker", broker_cfg.Log.Level, broker_cfg.Log.File)
 	capabilities := mqtt.NewDefaultServerCapabilities()
 	options := &mqtt.Options{
 		Capabilities: capabilities,
@@ -31,7 +34,7 @@ func NewBroker(broker_cfg types.BrokerConfig) *Broker {
 	server := mqtt.New(options)
 	err := server.AddHook(new(auth.AllowHook), nil)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error adding auth hook")
+		est_log.Fatal().Err(err).Msg("Error adding auth hook")
 	}
 	// convert log level to slog level
 	var log_level slog.Level
@@ -51,11 +54,10 @@ func NewBroker(broker_cfg types.BrokerConfig) *Broker {
 		Level: log_level,
 	}))
 	//create component zerologger
-	zerologger := zerolog.New(os.Stdout).Level(zerolog.Level(broker_cfg.Log.Level))
 
 	return &Broker{
 		broker_cfg: broker_cfg,
-		log:        &zerologger,
+		log:        &est_log,
 		broker:     server,
 		address:    broker_cfg.Adress,
 		id:         "broker",

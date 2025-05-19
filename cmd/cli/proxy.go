@@ -7,7 +7,6 @@ import (
 	"text/tabwriter"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +17,7 @@ var proxyCli = &cobra.Command{
 }
 
 func init() {
-	log.Debug().Msg("Registering proxy commands")
+	cli_logger.Debug().Msg("Registering proxy commands")
 	rootCmd.AddCommand(proxyCli)
 
 	// Create command flags
@@ -97,7 +96,7 @@ var createProxyCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -130,10 +129,10 @@ var createProxyCmd = &cobra.Command{
 
 		rsp, err := client.CreateProxy(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create proxy")
+			cli_logger.Fatal().Err(err).Msg("Failed to create proxy")
 		}
 
-		log.Info().Msgf("Proxy created: %v", rsp)
+		cli_logger.Info().Msgf("Proxy created: %v", rsp)
 		return nil
 	},
 }
@@ -150,7 +149,7 @@ var readProxyCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -181,7 +180,7 @@ var readProxyCmd = &cobra.Command{
 		}
 		rsp, err := client.GetProxy(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get proxy")
+			cli_logger.Fatal().Err(err).Msg("Failed to get proxy")
 		}
 
 		if HasMachineOutputFlag() {
@@ -209,7 +208,7 @@ var updateProxyCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -251,10 +250,10 @@ var updateProxyCmd = &cobra.Command{
 
 		_, err = client.UpdateProxy(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to update proxy")
+			cli_logger.Fatal().Err(err).Msg("Failed to update proxy")
 		}
 
-		log.Info().Msgf("Proxy updated successfully")
+		cli_logger.Info().Msgf("Proxy updated successfully")
 		return nil
 	},
 }
@@ -268,7 +267,7 @@ var deleteProxyCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -280,10 +279,10 @@ var deleteProxyCmd = &cobra.Command{
 
 		_, err = client.DeleteProxy(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to delete proxy")
+			cli_logger.Fatal().Err(err).Msg("Failed to delete proxy")
 		}
 
-		log.Info().Msgf("Proxy deleted successfully")
+		cli_logger.Info().Msgf("Proxy deleted successfully")
 		return nil
 	},
 }
@@ -297,7 +296,7 @@ var listProxiesCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -313,7 +312,7 @@ var listProxiesCmd = &cobra.Command{
 		}
 		rsp, err := client.GetProxy(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list proxies")
+			cli_logger.Fatal().Err(err).Msg("Failed to list proxies")
 		}
 
 		if HasMachineOutputFlag() {

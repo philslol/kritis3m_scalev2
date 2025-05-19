@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,16 +31,16 @@ type MqttFactory struct {
 	mu            sync.Mutex
 	client_config *mqtt_paho.ClientOptions
 	cfg           types.ControlPlaneConfig
-	logger        *zerolog.Logger
 	clients       []*client
 	grpc_controlplane.UnimplementedControlPlaneServer
 }
 
-var log = zerolog.New(os.Stdout).Level(zerolog.DebugLevel)
+var mqtt_log zerolog.Logger
 
 func ControlPlaneInit(cfg types.ControlPlaneConfig) *MqttFactory {
 
 	var factory *MqttFactory
+	mqtt_log = types.CreateLogger("mqtt_client", cfg.Log.Level, cfg.Log.File)
 
 	client_opts := mqtt_paho.NewClientOptions()
 	factory = &MqttFactory{
@@ -48,7 +48,6 @@ func ControlPlaneInit(cfg types.ControlPlaneConfig) *MqttFactory {
 		cfg:           cfg,
 		mu:            sync.Mutex{},
 		clients:       make([]*client, 4),
-		logger:        &log,
 	}
 	factory.clients[0] = &client{
 		id_name: "log",
@@ -126,19 +125,19 @@ func (f *MqttFactory) GetClient(id string) (*client, error) {
 /********************************** Handler *******************************************/
 
 var messagePubHandler mqtt_paho.MessageHandler = func(client mqtt_paho.Client, msg mqtt_paho.Message) {
-	log.Debug().Str("topic", msg.Topic()).Str("payload", string(msg.Payload())).Msg("Received message")
+	mqtt_log.Debug().Str("topic", msg.Topic()).Str("payload", string(msg.Payload())).Msg("Received message")
 }
 
 var connectHandler mqtt_paho.OnConnectHandler = func(client mqtt_paho.Client) {
-	log.Debug().Msg("Connected to MQTT broker")
+	mqtt_log.Debug().Msg("Connected to MQTT broker")
 }
 
 var connectLostHandler mqtt_paho.ConnectionLostHandler = func(client mqtt_paho.Client, err error) {
-	log.Error().Err(err).Msg("Connection lost to MQTT broker")
+	mqtt_log.Error().Err(err).Msg("Connection lost to MQTT broker")
 }
 
 var reconHandler mqtt_paho.ReconnectHandler = func(client mqtt_paho.Client, opts *mqtt_paho.ClientOptions) {
-	log.Debug().Msg("Reconnecting to MQTT broker")
+	mqtt_log.Debug().Msg("Reconnecting to MQTT broker")
 }
 
 /**********************************End  Handler *******************************************/
@@ -191,7 +190,7 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 	timeout := time.After(40 * time.Second) // Add a reasonable timeout
 	c, err := fac.GetClient("update_node")
 	if err != nil {
-		log.Err(err).Msg("failed to get client")
+		mqtt_log.Err(err).Msg("failed to get client")
 		return status.Errorf(codes.Internal, "failed to get client")
 	}
 	defer c.cleanup()
@@ -205,7 +204,7 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 
 	// Subscribe to the topic
 	qosToken := c.client.Subscribe(topicState, 2, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
-		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+		mqtt_log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 		payload := msg.Payload()
 		// Parse payload to v1.UpdateState
 		var updateState grpc_controlplane.UpdateState
@@ -215,7 +214,7 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 
 		fmt.Printf("control_msg: %+v\n", control_msg)
 		if err != nil {
-			log.Err(err).Msg("error unmarshalling update state")
+			mqtt_log.Err(err).Msg("error unmarshalling update state")
 			doneChan <- err
 			return
 		}
@@ -231,7 +230,7 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 
 	jsonReq, err := json.Marshal(req.NodeUpdateItem)
 	if err != nil {
-		log.Err(err).Msg("error marshalling request")
+		mqtt_log.Err(err).Msg("error marshalling request")
 		// Unsubscribe before returning
 		c.client.Unsubscribe(topicState)
 		return status.Errorf(codes.Internal, "failed to marshal request")
@@ -241,7 +240,7 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 	configToken := c.client.Publish(topicConfig, 2, false, jsonReq)
 	configToken.Wait()
 	if configToken.Error() != nil {
-		log.Err(configToken.Error()).Msg("error publishing update to node")
+		mqtt_log.Err(configToken.Error()).Msg("error publishing update to node")
 		// Unsubscribe before returning
 		c.client.Unsubscribe(topicSync)
 		return configToken.Error()
@@ -275,21 +274,21 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 				// Handle state transitions
 				if updateState == grpc_controlplane.UpdateState_UPDATE_APPLICABLE {
 					// Node is ready to apply the update, send apply request
-					log.Debug().Str("node", serialNumber).Msg("Node ready for update, sending apply request")
+					mqtt_log.Debug().Str("node", serialNumber).Msg("Node ready for update, sending apply request")
 					applyToken := c.client.Publish(topicSync, 2, false, fmt.Sprintf(`{"status": %d,"tx_id":%d}`, grpc_controlplane.UpdateState_UPDATE_APPLY_REQ, req.Transaction.TxId))
 					applyToken.Wait()
 					if applyToken.Error() != nil {
-						log.Err(applyToken.Error()).Msg("error sending apply request")
+						mqtt_log.Err(applyToken.Error()).Msg("error sending apply request")
 						doneChan <- applyToken.Error()
 						return
 					}
 				} else if updateState == grpc_controlplane.UpdateState_UPDATE_APPLIED {
 					// Node has applied the update, send acknowledgment
-					log.Debug().Str("node", serialNumber).Msg("Node applied update, sending acknowledgment")
+					mqtt_log.Debug().Str("node", serialNumber).Msg("Node applied update, sending acknowledgment")
 					ackToken := c.client.Publish(topicSync, 2, false, []byte(fmt.Sprintf(`{"status": %d,"tx_id":%d}`, grpc_controlplane.UpdateState_UPDATE_ACKNOWLEDGED, req.Transaction.TxId)))
 					ackToken.Wait()
 					if ackToken.Error() != nil {
-						log.Err(ackToken.Error()).Msg("error sending acknowledgment")
+						mqtt_log.Err(ackToken.Error()).Msg("error sending acknowledgment")
 						updateState = grpc_controlplane.UpdateState_UPDATE_ERROR
 					}
 					updateState = grpc_controlplane.UpdateState_UPDATE_APPLIED
@@ -306,13 +305,13 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 					return
 				}
 
-				fac.logger.Debug().Msgf("Update to node %s state: %s; tx_id: %d",
+				mqtt_log.Debug().Msgf("Update to node %s state: %s; tx_id: %d",
 					serialNumber, updateState.String(), req.Transaction.TxId)
 
 				// Terminal states
 				if updateState == grpc_controlplane.UpdateState_UPDATE_APPLIED ||
 					updateState == grpc_controlplane.UpdateState_UPDATE_ERROR {
-					log.Info().Msgf("Update process finished for node %s state: %s; tx_id: %d",
+					mqtt_log.Info().Msgf("Update process finished for node %s state: %s; tx_id: %d",
 						serialNumber, updateState.String(), req.Transaction.TxId)
 					doneChan <- nil
 					return
@@ -339,7 +338,7 @@ func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer
 
 	c, err := fac.GetClient("hello")
 	if err != nil {
-		log.Err(err).Msg("failed to get client")
+		mqtt_log.Err(err).Msg("failed to get client")
 		return status.Errorf(codes.Internal, "failed to get client")
 	}
 	defer c.cleanup()
@@ -347,7 +346,7 @@ func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer
 	topic := "+/control/hello"
 	messageChan := make(chan string)
 	token := c.client.Subscribe(topic, 0, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
-		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+		mqtt_log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 		fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 		// Extract serial number from topic (first element)
 		parts := strings.Split(msg.Topic(), "/")
@@ -375,10 +374,11 @@ func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer
 func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[grpc_controlplane.LogResponse]) error {
 	c, err := fac.GetClient("log")
 	if err != nil {
-		log.Err(err).Msgf("failed to get client")
+		mqtt_log.Err(err).Msgf("failed to get client")
 		return status.Errorf(codes.Internal, "failed to get client")
 	}
 	defer c.cleanup()
+
 	type logMessage struct {
 		Timestamp int64  `json:"timestamp"`
 		Module    string `json:"module"`
@@ -392,7 +392,7 @@ func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[g
 		payload      string
 	}, 3)
 	token := c.client.Subscribe(topic, 0, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
-		log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+		mqtt_log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 		// Extract serial number from topic (first element)
 		parts := strings.Split(msg.Topic(), "/")
 		if len(parts) > 0 {
@@ -415,7 +415,7 @@ func (fac *MqttFactory) Log(ep *empty.Empty, stream grpc.ServerStreamingServer[g
 			var logMessages []logMessage
 			err := json.Unmarshal([]byte(msg.payload), &logMessages)
 			if err != nil {
-				log.Err(err).Msg("error unmarshalling log message")
+				mqtt_log.Err(err).Msg("error unmarshalling log message")
 				continue
 			}
 
@@ -467,12 +467,12 @@ type control_msg struct {
 
 /********************************** grpc service for control_plane *******************************************/
 func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream grpc.ServerStreamingServer[grpc_controlplane.FleetResponse]) error {
-	log.Info().Msgf("Starting fleet update for %d nodes, tx_id: %d", len(req.NodeUpdateItems), req.Transaction.TxId)
+	mqtt_log.Info().Msgf("Starting fleet update for %d nodes, tx_id: %d", len(req.NodeUpdateItems), req.Transaction.TxId)
 
 	c, err := fac.GetClient("update_fleet")
 
 	if err != nil {
-		log.Err(err).Msg("failed to get client")
+		mqtt_log.Err(err).Msg("failed to get client")
 		return status.Errorf(codes.Internal, "failed to get client")
 	}
 	defer c.cleanup()
@@ -503,7 +503,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 		// Extract serial number from topic
 		parts := strings.Split(msg.Topic(), "/")
 		if len(parts) < 3 {
-			fac.logger.Error().Msgf("Invalid topic format: %s", msg.Topic())
+			mqtt_log.Error().Msgf("Invalid topic format: %s", msg.Topic())
 			return
 		}
 		serialNumber := parts[0]
@@ -514,7 +514,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 		err := json.Unmarshal(payload, &control_msg)
 
 		if err != nil {
-			log.Err(err).Msg("error unmarshalling update state")
+			mqtt_log.Err(err).Msg("error unmarshalling update state")
 			return
 		}
 
@@ -531,7 +531,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 			Error:        errorMsg,
 		}
 
-		log.Debug().
+		mqtt_log.Debug().
 			Str("node", serialNumber).
 			Str("state", updateState.String()).
 			Int32("tx_id", txId).
@@ -553,6 +553,7 @@ func (fac *MqttFactory) UpdateFleet(req *grpc_controlplane.FleetUpdate, stream g
 		// Clean up subscription
 		c.client.Unsubscribe(topicState)
 		close(nodeChan) // Close channel to prevent goroutine leaks
+		//close stream
 
 		if err != nil {
 			return fmt.Errorf("fleet update failed: %w", err)
@@ -606,7 +607,19 @@ func processFleetUpdate(
 			doneChan <- fmt.Errorf("context deadline exceeded or canceled")
 			return
 		case msg := <-nodeChan:
-			// Process this node update
+			// Send individual node status update via gRPC
+			if err := stream.Send(&grpc_controlplane.FleetResponse{
+				UpdateState:  msg.State,
+				Timestamp:    timestamppb.New(msg.Timestamp),
+				TxId:         msg.TxId,
+				SerialNumber: msg.SerialNumber,
+				Meta:         &msg.Error,
+			}); err != nil {
+				doneChan <- fmt.Errorf("failed to send node status update: %w", err)
+				return
+			}
+
+			// Process this node update for global state
 			newGlobalState, err := updateNodeStatus(status, msg)
 			if err != nil {
 				// If the error is just that we've already reported it, continue
@@ -771,6 +784,8 @@ func updateNodeStatus(
 	// Update node state
 	status.nodes[msg.SerialNumber] = msg.State
 
+	// update node status
+
 	// Log individual node updates
 	log.Debug().
 		Str("node", msg.SerialNumber).
@@ -842,7 +857,7 @@ func updateNodeStatus(
 		allNodesInState(grpc_controlplane.UpdateState_UPDATE_APPLICABLE) {
 
 		counts := countNodesInState()
-		log.Info().
+		mqtt_log.Info().
 			Str("previous_global_state", status.lastGlobalState.String()).
 			Str("new_global_state", "UPDATE_APPLICABLE").
 			Interface("node_counts", counts).
@@ -858,7 +873,7 @@ func updateNodeStatus(
 		allNodesInState(grpc_controlplane.UpdateState_UPDATE_APPLIED) {
 
 		counts := countNodesInState()
-		log.Info().
+		mqtt_log.Info().
 			Str("previous_global_state", status.lastGlobalState.String()).
 			Str("new_global_state", "UPDATE_APPLIED").
 			Interface("node_counts", counts).
@@ -1001,6 +1016,6 @@ func sendFleetResponse(
 		UpdateState: state,
 		Timestamp:   timestamppb.New(time.Now()),
 		TxId:        txId,
-		Meta:        meta,
+		Meta:        &meta,
 	})
 }

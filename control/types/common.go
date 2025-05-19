@@ -2,8 +2,10 @@ package types
 
 import (
 	"errors"
+	"os"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -44,6 +46,27 @@ const (
 	Shut_down       Operationtype = 2
 	Restart         Operationtype = 3
 )
+
+func CreateLogger(module string, log_level zerolog.Level, log_file string) zerolog.Logger {
+	if log_file == "" {
+		return zerolog.New(os.Stdout).Level(log_level).With().Str("module", module).Timestamp().Logger()
+	}
+
+	// Create a file writer that's safe for concurrent access
+	file, err := os.OpenFile(log_file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		// If we can't open the log file, fall back to stdout
+		return zerolog.New(os.Stdout).Level(log_level).With().
+			Str("module", module).
+			Str("error", "Failed to open log file: "+err.Error()).
+			Timestamp().Logger()
+	}
+
+	// Create a multi-writer to write to both file and stdout
+	multi := zerolog.MultiLevelWriter(os.Stdout, file)
+
+	return zerolog.New(multi).Level(log_level).With().Str("module", module).Timestamp().Logger()
+}
 
 var ErrCannotParsePrefix = errors.New("cannot parse prefix")
 

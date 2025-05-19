@@ -7,12 +7,11 @@ import (
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	log.Debug().Msg("Registering endpoint commands")
+	cli_logger.Debug().Msg("Registering endpoint commands")
 	rootCmd.AddCommand(endpointCli)
 
 	// Create command flags
@@ -77,7 +76,7 @@ var createEndpointCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -95,10 +94,10 @@ var createEndpointCmd = &cobra.Command{
 
 		rsp, err := client.CreateEndpointConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create endpoint")
+			cli_logger.Fatal().Err(err).Msg("Failed to create endpoint")
 		}
 
-		log.Info().Msgf("Endpoint created: %v", rsp)
+		cli_logger.Info().Msgf("Endpoint created: %v", rsp)
 		return nil
 	},
 }
@@ -115,7 +114,7 @@ var readEndpointCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -134,12 +133,12 @@ var readEndpointCmd = &cobra.Command{
 				},
 			}
 		} else {
-			log.Fatal().Msg("Must specify either id or version-number and name")
+			cli_logger.Fatal().Msg("Must specify either id or version-number and name")
 		}
 
 		rsp, err := client.GetEndpointConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get endpoint")
+			cli_logger.Fatal().Err(err).Msg("Failed to get endpoint")
 		}
 
 		if HasMachineOutputFlag() {
@@ -161,11 +160,11 @@ var updateEndpointCmd = &cobra.Command{
 
 		name, _ := cmd.Flags().GetString("name")
 		versionSetID, _ := cmd.Flags().GetString("version-number")
-		log.Debug().Msgf("versionSetID: %s, name: %s", versionSetID, name)
+		cli_logger.Debug().Msgf("versionSetID: %s, name: %s", versionSetID, name)
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -184,7 +183,7 @@ var updateEndpointCmd = &cobra.Command{
 				},
 			}
 		} else {
-			log.Fatal().Msg("Must specify either id or version-number and name")
+			cli_logger.Fatal().Msg("Must specify either id or version-number and name")
 		}
 
 		// Only add fields to the request if they were expliceitly set by user
@@ -215,10 +214,10 @@ var updateEndpointCmd = &cobra.Command{
 
 		_, err = client.UpdateEndpointConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to update endpoint")
+			cli_logger.Fatal().Err(err).Msg("Failed to update endpoint")
 		}
 
-		log.Info().Msgf("Endpoint updated successfully")
+		cli_logger.Info().Msgf("Endpoint updated successfully")
 		return nil
 	},
 }
@@ -232,7 +231,7 @@ var deleteEndpointCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -244,10 +243,10 @@ var deleteEndpointCmd = &cobra.Command{
 
 		_, err = client.DeleteEndpointConfig(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to delete endpoint")
+			cli_logger.Fatal().Err(err).Msg("Failed to delete endpoint")
 		}
 
-		log.Info().Msgf("Endpoint deleted successfully")
+		cli_logger.Info().Msgf("Endpoint deleted successfully")
 		return nil
 	},
 }
@@ -261,7 +260,7 @@ var listEndpointsCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -274,7 +273,7 @@ var listEndpointsCmd = &cobra.Command{
 		}
 		rsp, err := client.ListEndpointConfigs(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list endpoints")
+			cli_logger.Fatal().Err(err).Msg("Failed to list endpoints")
 		}
 
 		if HasMachineOutputFlag() {

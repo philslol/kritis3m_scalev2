@@ -2,7 +2,6 @@ package cli
 
 import (
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -13,7 +12,7 @@ var activateCmd = &cobra.Command{
 }
 
 func init() {
-	log.Debug().Msg("Registering activate commands")
+	cli_logger.Debug().Msg("Registering activate commands")
 
 	rootCmd.AddCommand(activateCmd)
 
@@ -48,7 +47,7 @@ var activateNodeCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -61,9 +60,9 @@ var activateNodeCmd = &cobra.Command{
 
 		resp, err := client.ActivateNode(ctx, req)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to activate node")
+			cli_logger.Fatal().Err(err).Msg("Failed to activate node")
 		}
-		log.Info().Msgf("Returncode is %d, with metadata %v", resp.Retcode, resp.Metadata)
+		cli_logger.Info().Msgf("Returncode is %d, with metadata %v", resp.Retcode, resp.Metadata)
 
 		return nil
 	},
@@ -78,7 +77,7 @@ var activateGroupCmd = &cobra.Command{
 		versionSetId, _ := cmd.Flags().GetString("version-number")
 
 		if versionSetId == "" || group == "" {
-			log.Fatal().Msg("Version number or group name is missing")
+			cli_logger.Fatal().Msg("Version number or group name is missing")
 		}
 
 		req := &grpc_southbound.ActivateFleetRequest{
@@ -89,16 +88,16 @@ var activateGroupCmd = &cobra.Command{
 		//get client
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
 
 		resp, err := client.ActivateFleet(ctx, req)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to activate fleet")
+			cli_logger.Fatal().Err(err).Msg("Failed to activate fleet")
 		}
-		log.Info().Msgf("Returncode is %d, with metadata %v", resp.Retcode, resp.Metadata)
+		cli_logger.Info().Msgf("Returncode is %d, with metadata %v", resp.Retcode, resp.Metadata)
 
 		return nil
 	},
@@ -112,7 +111,7 @@ var activateFleetCmd = &cobra.Command{
 		versionSetId, _ := cmd.Flags().GetString("version-number")
 
 		if versionSetId == "" {
-			log.Fatal().Msg("Version number is missing")
+			cli_logger.Fatal().Msg("Version number is missing")
 		}
 
 		req := &grpc_southbound.ActivateFleetRequest{
@@ -122,16 +121,16 @@ var activateFleetCmd = &cobra.Command{
 		//get client
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 		defer cancel()
 		defer conn.Close()
 
 		resp, err := client.ActivateFleet(ctx, req)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to activate fleet")
+			cli_logger.Fatal().Err(err).Msg("Failed to activate fleet")
 		}
-		log.Info().Msgf("Returncode is %d, with metadata %v", resp.Retcode, resp.Metadata)
+		cli_logger.Info().Msgf("Returncode is %d, with metadata %v", resp.Retcode, resp.Metadata)
 
 		return nil
 	},

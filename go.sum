@@ -5,6 +5,8 @@ github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250513
 github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250513090041-f629ef786414/go.mod h1:t0vejZxhsFjRg2kHCXJRLkOg920DuXrWMEOM0AuE0Gg=
 github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250515105506-1abed072a04e h1:H2pLJwMyQtBaXY7td91LNLRra37veytGoZvp8ZH3sgc=
 github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250515105506-1abed072a04e/go.mod h1:t0vejZxhsFjRg2kHCXJRLkOg920DuXrWMEOM0AuE0Gg=
+github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250519110449-7e9e75b25f1c h1:Wo3c/ItiKwM44zf2Ln03iHuPXrjQhRSF1iki6a965LE=
+github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto v0.0.0-20250519110449-7e9e75b25f1c/go.mod h1:t0vejZxhsFjRg2kHCXJRLkOg920DuXrWMEOM0AuE0Gg=
 github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250424112622-943bf27c932c h1:VPDeJnA+Xwa5yobfDcbD55kMTbJ6RFLIaaPv44o6wTQ=
 github.com/Laboratory-for-Safe-and-Secure-Systems/mqtt_broker v0.0.0-20250424112622-943bf27c932c/go.mod h1:V1p5hiMp0XKsX3DV5V4RYZiSPhmINFOafkLTzElAZac=
 github.com/Laboratory-for-Safe-and-Secure-Systems/paho.mqtt.golang v0.0.0-20250409145412-ea12e7607035 h1:KGGk+7iV/JC0qjNjGE/FljYg+3s4fgudQZRnL0exTY0=

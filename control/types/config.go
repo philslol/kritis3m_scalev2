@@ -37,6 +37,10 @@ type Config struct {
 	ControlPlane ControlPlaneConfig
 	ESTServer    ESTServerConfig
 
+	CLILog   LogConfig
+	NodeLog  LogConfig
+	HelloLog LogConfig
+
 	CliConfig CliConfig
 }
 
@@ -61,6 +65,7 @@ type ControlPlaneConfig struct {
 type LogConfig struct {
 	Format string
 	Level  zerolog.Level
+	File   string
 }
 
 // Config holds the database configuration
@@ -181,6 +186,7 @@ func parse_Log(basepath string) LogConfig {
 
 	log_config.Format = viper.GetString(fmt.Sprintf("%s.%s", basepath, "format"))
 	log_config.Level = zerolog.Level(viper.GetInt(fmt.Sprintf("%s.%s", basepath, "log_level")))
+	log_config.File = viper.GetString(fmt.Sprintf("%s.%s", basepath, "file"))
 	return log_config
 }
 
@@ -414,6 +420,7 @@ func GetKritis3mScaleConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	cli_log := parse_Log("cli_log")
 
 	return &Config{
 		Logfile:      viper.GetString("log_file"),
@@ -425,6 +432,9 @@ func GetKritis3mScaleConfig() (*Config, error) {
 		ESTServer:    *estServer,
 		Log:          parse_Log(""),
 		CliConfig:    GetCliConfig(),
+		CLILog:       cli_log,
+		NodeLog:      parse_Log("node_log"),
+		HelloLog:     parse_Log("hello_log"),
 	}, nil
 }
 

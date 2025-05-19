@@ -6,7 +6,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 )
 
 func (s *StateManager) CreateEndpointConfig(ctx context.Context, config *types.EndpointConfig) error {

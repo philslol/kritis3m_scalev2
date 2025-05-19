@@ -7,12 +7,11 @@ import (
 	"time"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	log.Debug().Msg("Registering node commands")
+	cli_logger.Debug().Msg("Registering node commands")
 	rootCmd.AddCommand(nodeCli)
 
 	// Create command flags
@@ -85,7 +84,7 @@ var createNodeCmd = &cobra.Command{
 		createdBy, _ := cmd.Flags().GetString("created-by")
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -101,11 +100,11 @@ var createNodeCmd = &cobra.Command{
 
 		rsp, err := client.CreateNode(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create node")
+			cli_logger.Fatal().Err(err).Msg("Failed to create node")
 		}
 
 		//log all fields
-		log.Info().Msgf("Node created: %v", rsp)
+		cli_logger.Info().Msgf("Node created: %v", rsp)
 
 		return nil
 	},
@@ -128,7 +127,7 @@ var readNodeCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -157,7 +156,7 @@ var readNodeCmd = &cobra.Command{
 
 		rsp, err := client.GetNode(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get node")
+			cli_logger.Fatal().Err(err).Msg("Failed to get node")
 		}
 
 		if HasMachineOutputFlag() {
@@ -183,7 +182,7 @@ var updateNodeCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -213,10 +212,10 @@ var updateNodeCmd = &cobra.Command{
 
 		_, err = client.UpdateNode(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to update node")
+			cli_logger.Fatal().Err(err).Msg("Failed to update node")
 		}
 
-		log.Info().Msg("Node updated successfully")
+		cli_logger.Info().Msg("Node updated successfully")
 		return nil
 	},
 }
@@ -231,7 +230,7 @@ var deleteNodeCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -244,10 +243,10 @@ var deleteNodeCmd = &cobra.Command{
 
 		_, err = client.DeleteNode(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to delete node")
+			cli_logger.Fatal().Err(err).Msg("Failed to delete node")
 		}
 
-		log.Info().Msg("Node deleted successfully")
+		cli_logger.Info().Msg("Node deleted successfully")
 		return nil
 	},
 }
@@ -262,7 +261,7 @@ var listNodesCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -275,7 +274,7 @@ var listNodesCmd = &cobra.Command{
 
 		rsp, err := client.ListNodes(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list nodes")
+			cli_logger.Fatal().Err(err).Msg("Failed to list nodes")
 		}
 
 		if HasMachineOutputFlag() {

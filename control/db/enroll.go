@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 )
 
 func (s *StateManager) ListEnroll(ctx context.Context) ([]*types.EnrollCallRequest, error) {

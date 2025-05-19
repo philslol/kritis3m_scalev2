@@ -8,7 +8,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 )
 
 // VersionSet represents a row in the version_sets table.
@@ -153,13 +152,11 @@ func (s *StateManager) CreateTransaction(ctx context.Context, description string
 }
 
 func (s *StateManager) UpdateTransaction(ctx context.Context, tx_id int, completed_at *time.Time, state *types.TransactionState, description *string) error {
-	wherestring := "WHERE id = $1"
+
+	wherestring := fmt.Sprintf("id = '%d'", tx_id)
 	values := make(map[string]any)
 	if completed_at != nil {
 		values["completed_at"] = completed_at
-	}
-	if state != nil {
-		values["state"] = state
 	}
 	if description != nil {
 		values["description"] = description
@@ -184,11 +181,12 @@ func (s *StateManager) LogNodeTransaction(ctx context.Context, transaction *type
 	return id, nil
 }
 
-func (s *StateManager) CreateVersionTransition(ctx context.Context, transition *types.VersionTransition) error {
-	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
+func (s *StateManager) CreateVersionTransition(ctx context.Context, transition *types.VersionTransition) (int, error) {
+	var version_transition_id int
+	err := s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
 		query := `
-			INSERT INTO version_transitions (from_version_transition, to_version_id, status, created_by, metadata)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO version_transitions (from_version_transition, to_version_id, status, created_by, metadata, transaction_id)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING id, started_at`
 
 		return tx.QueryRow(ctx, query,
@@ -197,8 +195,14 @@ func (s *StateManager) CreateVersionTransition(ctx context.Context, transition *
 			transition.Status,
 			transition.CreatedBy,
 			transition.Metadata,
-		).Scan(&transition.ID, &transition.StartedAt)
+			transition.TransactionID,
+		).Scan(&version_transition_id, &transition.StartedAt)
 	})
+	if err != nil {
+		log.Err(err).Msg("failed to create version transition")
+		return 0, err
+	}
+	return version_transition_id, nil
 }
 
 func (s *StateManager) GetVersionTransitionByID(ctx context.Context, id string) (*types.VersionTransition, error) {
@@ -269,21 +273,17 @@ func (s *StateManager) GetVersionTransitionByID(ctx context.Context, id string) 
 // }
 
 // UpdateVersionTransitionStatus updates the status of a version transition
-func (s *StateManager) UpdateVersionTransitionStatus(ctx context.Context, transactionId int, status string) error {
-	return s.ExecuteInTransaction(ctx, func(tx pgx.Tx) error {
-		query := `
-			UPDATE version_transitions 
-			SET status = $1, completed_at = CASE WHEN $1 IN ('active', 'failed') THEN NOW() ELSE NULL END
-			WHERE transaction_id = $2`
+func (s *StateManager) UpdateVersionTransitionStatus(ctx context.Context,
+	version_transition_id int,
+	status string, disabled_at *time.Time) error {
 
-		result, err := tx.Exec(ctx, query, status, transactionId)
-		if err != nil {
-			return fmt.Errorf("failed to update version transition status: %w", err)
-		}
+	where_string := fmt.Sprintf("id = '%d'", version_transition_id)
+	updates := make(map[string]any)
+	updates["status"] = status // status is now version_state enum
+	updates["completed_at"] = time.Now()
+	if disabled_at != nil {
+		updates["disabled_at"] = disabled_at
+	}
 
-		if result.RowsAffected() == 0 {
-			return fmt.Errorf("no version transition found for transaction %d", transactionId)
-		}
-		return nil
-	})
+	return s.UpdateWhere(ctx, "version_transitions", updates, where_string)
 }

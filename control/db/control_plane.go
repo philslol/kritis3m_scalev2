@@ -10,7 +10,6 @@ import (
 	// v1 "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/gen/go/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/philslol/kritis3m_scalev2/control/types"
-	"github.com/rs/zerolog/log"
 )
 
 func (s *StateManager) NodeUpdate(SerialNumber string, VersionSet string, ctx context.Context) (*grpc_control_plane.NodeUpdateItem, error) {

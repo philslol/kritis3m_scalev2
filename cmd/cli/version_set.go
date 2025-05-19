@@ -6,12 +6,11 @@ import (
 	"text/tabwriter"
 
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	log.Debug().Msg("Registering version set commands")
+	cli_logger.Debug().Msg("Registering version set commands")
 	rootCmd.AddCommand(versionSetCli)
 
 	// Create command flags
@@ -61,7 +60,7 @@ var createVersionSetCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -75,10 +74,10 @@ var createVersionSetCmd = &cobra.Command{
 
 		rsp, err := client.CreateVersionSet(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to create version set")
+			cli_logger.Fatal().Err(err).Msg("Failed to create version set")
 		}
 
-		log.Info().Msgf("Version set created: %v", rsp)
+		cli_logger.Info().Msgf("Version set created: %v", rsp)
 		return nil
 	},
 }
@@ -92,7 +91,7 @@ var readVersionSetCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -104,7 +103,7 @@ var readVersionSetCmd = &cobra.Command{
 
 		rsp, err := client.GetVersionSet(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to execute grpc get version set")
+			cli_logger.Fatal().Err(err).Msg("Failed to execute grpc get version set")
 		}
 
 		if HasMachineOutputFlag() {
@@ -128,7 +127,7 @@ var updateVersionSetCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -142,10 +141,10 @@ var updateVersionSetCmd = &cobra.Command{
 
 		rsp, err := client.UpdateVersionSet(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to update version set")
+			cli_logger.Fatal().Err(err).Msg("Failed to update version set")
 		}
 
-		log.Info().Msgf("Version set updated: %v", rsp)
+		cli_logger.Info().Msgf("Version set updated: %v", rsp)
 		return nil
 	},
 }
@@ -159,7 +158,7 @@ var deleteVersionSetCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -171,10 +170,10 @@ var deleteVersionSetCmd = &cobra.Command{
 
 		rsp, err := client.DeleteVersionSet(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to delete version set")
+			cli_logger.Fatal().Err(err).Msg("Failed to delete version set")
 		}
 
-		log.Info().Msgf("Version set deleted: %v", rsp)
+		cli_logger.Info().Msgf("Version set deleted: %v", rsp)
 		return nil
 	},
 }
@@ -188,7 +187,7 @@ var listVersionSetsCmd = &cobra.Command{
 
 		ctx, client, conn, cancel, err := getClient()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get client")
+			cli_logger.Fatal().Err(err).Msg("Failed to get client")
 		}
 
 		defer cancel()
@@ -203,7 +202,7 @@ var listVersionSetsCmd = &cobra.Command{
 
 		rsp, err := client.ListVersionSets(ctx, request)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to list version sets")
+			cli_logger.Fatal().Err(err).Msg("Failed to list version sets")
 		}
 
 		if HasMachineOutputFlag() {

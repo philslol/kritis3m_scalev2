@@ -63,7 +63,7 @@ func (scale *Kritis3m_Scale) Serve() {
 		defer estServer.Shutdown()
 	}
 
-	database, err := db.NewStateManager(ctx)
+	database, err := db.NewStateManager(ctx, scale.cfg.Log)
 	if err != nil {
 		log.Err(err).Msg("")
 	}
@@ -109,7 +109,7 @@ func (scale *Kritis3m_Scale) Serve() {
 		}
 	}()
 
-	hello_service := southbound.NewHelloService(database, scale.cfg.CliConfig.ServerAddr)
+	hello_service := southbound.NewHelloService(database, scale.cfg.CliConfig.ServerAddr, scale.cfg.Log)
 	go func() {
 		err := hello_service.Hello(ctx)
 		if err != nil {
@@ -118,7 +118,7 @@ func (scale *Kritis3m_Scale) Serve() {
 		}
 	}()
 
-	log_service := southbound.NewLogService(database, scale.cfg.CliConfig.ServerAddr, scale.cfg.Logfile)
+	log_service := southbound.NewLogService(database, scale.cfg.CliConfig.ServerAddr, scale.cfg.Log)
 	go func() {
 		err := log_service.LogNodeTransaction(ctx)
 		if err != nil {
@@ -150,7 +150,7 @@ func (scale *Kritis3m_Scale) Serve() {
 func (scale *Kritis3m_Scale) GetRawDB(timeout time.Duration) (*db.StateManager, context.Context, context.CancelFunc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 
-	database, err := db.NewStateManager(ctx)
+	database, err := db.NewStateManager(ctx, scale.cfg.Log)
 	if err != nil {
 		log.Err(err).Msg("Failed to get raw database")
 		return nil, ctx, cancel, err
