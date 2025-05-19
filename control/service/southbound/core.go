@@ -14,7 +14,6 @@ import (
 	"github.com/philslol/kritis3m_scalev2/control/db"
 	"github.com/philslol/kritis3m_scalev2/control/types"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // SouthboundService handles communication with the control plane
@@ -134,10 +133,10 @@ func (ls *LogService) LogNodeTransaction(ctx context.Context) error {
 	// Wait for context cancellation or error from goroutine
 	select {
 	case <-ctx.Done():
-		log.Info().Msg("Log service context cancelled")
+		ls.logger.Info().Msg("Log service context cancelled")
 		return ctx.Err()
 	case err := <-errChan:
-		log.Error().Err(err).Msg("Log service error")
+		ls.logger.Error().Err(err).Msg("Log service error")
 		return err
 	}
 }
@@ -152,7 +151,7 @@ func (hs *HelloService) Hello(ctx context.Context) error {
 
 	stream, err := client.Hello(ctx, &empty.Empty{})
 	if err != nil {
-		log.Error().Err(err).Msg("Error creating hello stream")
+		hs.logger.Error().Err(err).Msg("Error creating hello stream")
 		return err
 	}
 

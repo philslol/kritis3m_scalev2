@@ -420,7 +420,6 @@ func GetKritis3mScaleConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli_log := parse_Log("cli_log")
 
 	return &Config{
 		Logfile:      viper.GetString("log_file"),
@@ -432,7 +431,7 @@ func GetKritis3mScaleConfig() (*Config, error) {
 		ESTServer:    *estServer,
 		Log:          parse_Log(""),
 		CliConfig:    GetCliConfig(),
-		CLILog:       cli_log,
+		CLILog:       parse_Log("cli_log"),
 		NodeLog:      parse_Log("node_log"),
 		HelloLog:     parse_Log("hello_log"),
 	}, nil

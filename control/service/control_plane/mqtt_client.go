@@ -636,7 +636,7 @@ func processFleetUpdate(
 				// All nodes have received configs and are ready to apply
 				// But only send apply request once
 				if !applySent {
-					log.Info().Msg("All nodes are ready to apply update, sending apply signal")
+					mqtt_log.Info().Msg("All nodes are ready to apply update, sending apply signal")
 
 					// Send global state update to client
 					if err := sendFleetResponse(stream, grpc_controlplane.UpdateState_UPDATE_APPLICABLE, req.Transaction.TxId, "All nodes ready for update"); err != nil {
@@ -661,7 +661,7 @@ func processFleetUpdate(
 				// All nodes have successfully applied configs
 				// But only send acknowledgement once
 				if !ackSent {
-					log.Info().Msg("All nodes have successfully applied the update, sending acknowledgement")
+					mqtt_log.Info().Msg("All nodes have successfully applied the update, sending acknowledgement")
 
 					// Send global state update to client
 					if err := sendFleetResponse(stream, grpc_controlplane.UpdateState_UPDATE_APPLIED, req.Transaction.TxId, "All nodes have applied update"); err != nil {
@@ -680,7 +680,7 @@ func processFleetUpdate(
 					}
 
 					ackSent = true
-					log.Info().Msg("Fleet update completed successfully")
+					mqtt_log.Info().Msg("Fleet update completed successfully")
 					doneChan <- nil
 					return // Return here to properly exit the function
 				}
@@ -688,12 +688,12 @@ func processFleetUpdate(
 			case grpc_controlplane.UpdateState_UPDATE_ERROR:
 				// Error state received - implement rollback
 				if !rollbackSent {
-					log.Error().Str("node", msg.SerialNumber).Str("error", msg.Error).Msg("Node reported error, initiating rollback")
+					mqtt_log.Error().Str("node", msg.SerialNumber).Str("error", msg.Error).Msg("Node reported error, initiating rollback")
 
 					// Send global error state to client
 					if err := sendFleetResponse(stream, grpc_controlplane.UpdateState_UPDATE_ERROR, req.Transaction.TxId,
 						fmt.Sprintf("Update failed on node %s: %s - initiating rollback", msg.SerialNumber, msg.Error)); err != nil {
-						log.Error().Err(err).Msg("Failed to send error state")
+						mqtt_log.Error().Err(err).Msg("Failed to send error state")
 					}
 
 					// Update global state to ROLLBACK before sending the rollback request
@@ -703,7 +703,7 @@ func processFleetUpdate(
 
 					// Send rollback request to all nodes
 					if err := sendRollbackRequest(ctx, c, req); err != nil {
-						log.Error().Err(err).Msg("Failed to send rollback request")
+						mqtt_log.Error().Err(err).Msg("Failed to send rollback request")
 					}
 
 					rollbackSent = true
@@ -721,7 +721,7 @@ func publishConfigs(
 	c *client,
 	req *grpc_controlplane.FleetUpdate,
 	status *fleetStatus) error {
-	log.Info().Msgf("Publishing configs to %d nodes", len(req.NodeUpdateItems))
+	mqtt_log.Info().Msgf("Publishing configs to %d nodes", len(req.NodeUpdateItems))
 
 	for _, node := range req.NodeUpdateItems {
 		select {
@@ -730,7 +730,7 @@ func publishConfigs(
 		default:
 			payload, err := json.Marshal(node)
 			if err != nil {
-				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to marshal node")
+				mqtt_log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to marshal node")
 				return fmt.Errorf("failed to marshal node %s: %w", node.SerialNumber, err)
 			}
 			// Use the new topic structure
@@ -739,11 +739,11 @@ func publishConfigs(
 			configToken.Wait()
 
 			if err := configToken.Error(); err != nil {
-				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to publish config")
+				mqtt_log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to publish config")
 				return fmt.Errorf("failed to publish config to node %s: %w", node.SerialNumber, err)
 			}
 
-			log.Debug().Str("node", node.SerialNumber).Msg("Config published")
+			mqtt_log.Debug().Str("node", node.SerialNumber).Msg("Config published")
 
 			// Set initial state for this node
 			status.mu.Lock()
@@ -766,7 +766,7 @@ func updateNodeStatus(
 
 	// Check if we're tracking this node
 	if !status.expectedNodes[msg.SerialNumber] {
-		log.Warn().Str("node", msg.SerialNumber).Msg("Received update from unexpected node")
+		mqtt_log.Warn().Str("node", msg.SerialNumber).Msg("Received update from unexpected node")
 		return grpc_controlplane.UpdateState_UPDATE_ERROR, nil
 	}
 
@@ -774,7 +774,7 @@ func updateNodeStatus(
 	previousNodeState, exists := status.nodes[msg.SerialNumber]
 	if exists && previousNodeState == msg.State {
 		// Node state hasn't changed, no need to update
-		log.Debug().
+		mqtt_log.Debug().
 			Str("node", msg.SerialNumber).
 			Str("state", msg.State.String()).
 			Msg("Node state unchanged")
@@ -787,7 +787,7 @@ func updateNodeStatus(
 	// update node status
 
 	// Log individual node updates
-	log.Debug().
+	mqtt_log.Debug().
 		Str("node", msg.SerialNumber).
 		Str("state", msg.State.String()).
 		Int32("tx_id", msg.TxId).
@@ -797,7 +797,7 @@ func updateNodeStatus(
 	if msg.State == grpc_controlplane.UpdateState_UPDATE_ERROR {
 		// Only propagate error if we haven't already
 		if status.lastGlobalState != grpc_controlplane.UpdateState_UPDATE_ERROR {
-			log.Info().
+			mqtt_log.Info().
 				Str("node", msg.SerialNumber).
 				Str("previous_global_state", status.lastGlobalState.String()).
 				Str("new_global_state", "UPDATE_ERROR").
@@ -886,7 +886,7 @@ func updateNodeStatus(
 	// Log progress but without changing global state
 	counts := countNodesInState()
 	totalNodes := len(status.expectedNodes)
-	log.Debug().
+	mqtt_log.Debug().
 		Str("node", msg.SerialNumber).
 		Str("state", msg.State.String()).
 		Interface("node_counts", counts).
@@ -902,7 +902,7 @@ func sendUpdateApplyRequest(
 	c *client,
 	req *grpc_controlplane.FleetUpdate,
 ) error {
-	log.Info().Msg("Sending apply request to all nodes")
+	mqtt_log.Info().Msg("Sending apply request to all nodes")
 
 	for _, node := range req.NodeUpdateItems {
 		select {
@@ -921,11 +921,11 @@ func sendUpdateApplyRequest(
 			token.Wait()
 
 			if err := token.Error(); err != nil {
-				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send apply request")
+				mqtt_log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send apply request")
 				return fmt.Errorf("failed to send apply request to node %s: %w", node.SerialNumber, err)
 			}
 
-			log.Debug().Str("node", node.SerialNumber).Msg("Apply request sent")
+			mqtt_log.Debug().Str("node", node.SerialNumber).Msg("Apply request sent")
 		}
 	}
 
@@ -938,7 +938,7 @@ func sendUpdateAcknowledgement(
 	c *client,
 	req *grpc_controlplane.FleetUpdate,
 ) error {
-	log.Info().Msg("Sending acknowledgement to all nodes")
+	mqtt_log.Info().Msg("Sending acknowledgement to all nodes")
 
 	for _, node := range req.NodeUpdateItems {
 		select {
@@ -957,11 +957,11 @@ func sendUpdateAcknowledgement(
 			token.Wait()
 
 			if err := token.Error(); err != nil {
-				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send acknowledgement")
+				mqtt_log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send acknowledgement")
 				return fmt.Errorf("failed to send acknowledgement to node %s: %w", node.SerialNumber, err)
 			}
 
-			log.Debug().Str("node", node.SerialNumber).Msg("Acknowledgement sent")
+			mqtt_log.Debug().Str("node", node.SerialNumber).Msg("Acknowledgement sent")
 		}
 	}
 
@@ -974,7 +974,7 @@ func sendRollbackRequest(
 	c *client,
 	req *grpc_controlplane.FleetUpdate,
 ) error {
-	log.Info().Msg("Sending rollback request to all nodes")
+	mqtt_log.Info().Msg("Sending rollback request to all nodes")
 
 	for _, node := range req.NodeUpdateItems {
 		select {
@@ -993,12 +993,12 @@ func sendRollbackRequest(
 			token.Wait()
 
 			if err := token.Error(); err != nil {
-				log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send rollback request")
+				mqtt_log.Error().Err(err).Str("node", node.SerialNumber).Msg("Failed to send rollback request")
 				// Continue with other nodes even if one fails
 				continue
 			}
 
-			log.Debug().Str("node", node.SerialNumber).Msg("Rollback request sent")
+			mqtt_log.Debug().Str("node", node.SerialNumber).Msg("Rollback request sent")
 		}
 	}
 
