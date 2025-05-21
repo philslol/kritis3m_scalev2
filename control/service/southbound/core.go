@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -64,11 +63,6 @@ func NewLogService(db *db.StateManager, addr string, log_config types.LogConfig)
 
 func (ls *LogService) LogNodeTransaction(ctx context.Context) error {
 	// Open filepath and create new zerologger instance for that path
-	file, err := os.OpenFile(ls.filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
 
 	client, conn, err := getControlPlaneClient(ls.addr)
 	if err != nil {
@@ -172,6 +166,7 @@ func (hs *HelloService) Hello(ctx context.Context) error {
 					errChan <- err
 					return
 				}
+				hs.logger.Debug().Msgf("Received hello from node: %s", response.SerialNumber)
 				// Use a parameterized query instead of string interpolation
 				where_string := fmt.Sprintf("serial_number = '%s'", response.SerialNumber)
 				db_context, db_cancel := context.WithTimeout(context.Background(), 5*time.Second)

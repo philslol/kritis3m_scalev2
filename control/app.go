@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Laboratory-for-Safe-and-Secure-Systems/go-asl"
 	grpc_control_plane "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/control_plane"
 	grpc_est "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/est"
 	grpc_southbound "github.com/Laboratory-for-Safe-and-Secure-Systems/kritis3m_proto/southbound"
@@ -47,6 +48,11 @@ func (scale *Kritis3m_Scale) Serve() {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	var config asl.ASLConfig = asl.ASLConfig{
+		LogLevel: scale.cfg.ASLConfig.LogLevel,
+	}
+	asl.ASLinit(&config)
 
 	estServer, err := controlplane.NewESTServer(&scale.cfg.ESTServer)
 	if err != nil {

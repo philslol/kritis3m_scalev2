@@ -212,7 +212,6 @@ func (fac *MqttFactory) UpdateNode(req *grpc_controlplane.NodeUpdate, stream grp
 
 		err := json.Unmarshal(payload, &control_msg)
 
-		fmt.Printf("control_msg: %+v\n", control_msg)
 		if err != nil {
 			mqtt_log.Err(err).Msg("error unmarshalling update state")
 			doneChan <- err
@@ -347,8 +346,6 @@ func (fac *MqttFactory) Hello(ep *empty.Empty, stream grpc.ServerStreamingServer
 	messageChan := make(chan string)
 	token := c.client.Subscribe(topic, 0, func(client mqtt_paho.Client, msg mqtt_paho.Message) {
 		mqtt_log.Debug().Msgf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-		fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-		// Extract serial number from topic (first element)
 		parts := strings.Split(msg.Topic(), "/")
 		if len(parts) > 0 {
 			serialNumber := parts[0]

@@ -166,18 +166,6 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 
 	// Start goroutine to handle stream receiving
 	go func() {
-		defer func() {
-			// If we haven't set a final state yet, mark as error
-			if finalState == "" {
-				finalState = types.TransactionStateError
-				finalDescription = "Connection closed unexpectedly"
-			}
-			select {
-			case done <- struct{}{}:
-			default:
-				// Channel already closed, ignore
-			}
-		}()
 
 		for {
 			select {
@@ -197,6 +185,7 @@ func (sb *SouthboundService) ActivateFleet(ctx context.Context, req *grpc_southb
 							finalState = types.TransactionStateApplied
 							finalDescription = "Update completed successfully"
 						}
+						done <- struct{}{}
 						return
 					}
 					lastError = err
